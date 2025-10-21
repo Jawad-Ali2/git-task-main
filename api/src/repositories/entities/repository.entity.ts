@@ -4,16 +4,22 @@ import { Column, Entity, ManyToOne, OneToMany, PrimaryGeneratedColumn } from "ty
 
 
 @Entity('repositories')
-export class Repository{
+export class Repository {
 
     @PrimaryGeneratedColumn('uuid')
     id: string;
+
+    @Column()
+    githubId: string;
 
     @Column()
     name: string;
 
     @Column()
     url: string;
+
+    @Column({ default: false })
+    private: boolean;
 
     @ManyToOne(() => User, (user) => user.repositories)
     user: User;

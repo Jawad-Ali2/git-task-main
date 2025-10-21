@@ -8,6 +8,8 @@ import { RedisModule } from './redis/redis.module';
 import { User } from './users/entities/user.entity';
 import { Repository } from './repositories/entities/repository.entity';
 import { Task } from './tasks/entities/tasks.entity';
+import { AuthModule } from './auth/auth.module';
+import { RepositoriesModule } from './repositories/repositories.module';
 
 @Module({
   imports: [
@@ -21,13 +23,15 @@ import { Task } from './tasks/entities/tasks.entity';
       password: process.env.DATABASE_PASSWORD,
       database: process.env.DATABASE_NAME,
       entities: [User, Repository, Task],
-      synchronize: false,
+      synchronize: true,
       ssl: {
         rejectUnauthorized: false
       }
     }),
 
-    RedisModule
+    RedisModule,
+    AuthModule,
+    RepositoriesModule
   ],
   controllers: [AppController, RedisController],
   providers: [AppService],

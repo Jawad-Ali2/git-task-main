@@ -1,21 +1,26 @@
-import { Repository } from '../../repositories/entities/repository.entity';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from "typeorm";
-
+import { Repository } from 'src/repositories/entities/repository.entity';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 
 @Entity('users')
-export class User{
-    @PrimaryGeneratedColumn('uuid')
-    id: string;
+export class User {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-    @Column()
-    name: string;
+  @Column({ nullable: true })
+  githubId?: string;
 
-    @Column({unique: true})
-    email: string;
+  @Column({ nullable: true })
+  accessToken?: string; // store access token (be cautious with security)
 
-    @Column()
-    role: string;
+  @Column({ nullable: true })
+  name?: string;
 
-    @OneToMany(( ) => Repository, (repo) => repo.user)
-    repositories: Repository[];
+  @Column({ unique: true, nullable: true })
+  email?: string;
+
+  @Column({ default: 'developer' })
+  role: string; // developer | manager | admin
+
+  @OneToMany(() => Repository, (repo) => repo.user)
+  repositories: Repository[];
 }
