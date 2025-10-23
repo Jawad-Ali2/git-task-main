@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,7 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "GitTask: Transform TODOs into Actionable Intelligence",
-  description: "Automatically extract, track, and analyze TODO comments from your GitHub repositories. Get AI-powered insights and never let technical debt slip through the cracks.",
+  description:
+    "Automatically extract, track, and analyze TODO comments from your GitHub repositories. Get AI-powered insights and never let technical debt slip through the cracks.",
 };
 
 export default function RootLayout({
@@ -27,7 +29,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );
