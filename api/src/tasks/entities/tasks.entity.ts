@@ -21,4 +21,10 @@ export class Task {
 
   @ManyToOne(() => Repository, (repo) => repo.tasks)
   repository: Repository;
+
+  @Column({ type: 'text', nullable: true })
+  ai_summary: string;
+
+  @Column({ type: 'float', nullable: true })
+  debt_score: number;
 }

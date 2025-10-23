@@ -21,6 +21,12 @@ export class Repository {
     @Column({ default: false })
     private: boolean;
 
+    @Column({type: 'text', nullable: true})
+    ai_summary: string;
+
+    @Column({type: 'float', nullable: true})
+    debt_score: number;
+
     @ManyToOne(() => User, (user) => user.repositories)
     user: User;
 

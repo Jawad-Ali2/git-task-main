@@ -1,9 +1,8 @@
 import { DataSource } from 'typeorm';
 import 'dotenv/config';
-import { User } from './users/entities/user.entity';
-import { Repository } from './repositories/entities/repository.entity';
-import { Task } from './tasks/entities/tasks.entity';
-import 'dotenv/config';
+// import { User } from './users/entities/user.entity';
+// import { Repository } from './repositories/entities/repository.entity';
+// import { Task } from './tasks/entities/tasks.entity';
 
 export default new DataSource({
     type: 'postgres',
@@ -12,6 +11,8 @@ export default new DataSource({
     username: process.env.DATABASE_USER,
     password: process.env.DATABASE_PASSWORD,
     database: process.env.DATABASE_NAME,
-    entities: [User, Repository, Task],
+    entities: ['src/**/*.entity.ts'],
     migrations: ['src/migrations/*.ts'],
+    // ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
+    ssl: true,
 });

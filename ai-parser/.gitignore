@@ -1,0 +1,217 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*,cover
+
+# Translations
+*.mo
+*.pot
+
+# Virtual environments
+venv/
+ENV/
+env/
+.env/
+.venv/
+env.bak/
+venv.bak/
+__pypackages__/
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Local DB files
+*.db
+*.sqlite3
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-*
+*.code-workspace
+
+# macOS / Windows artifacts
+.DS_Store
+Thumbs.db
+
+# Type checking caches
+.mypy_cache/
+.pyre/
+.pytype/
+
+# Local settings / secrets
+instance/
+*.env
+.env.*
+secrets.json
+
+# Docker-related local overrides
+docker-compose.override.yml
+.env.docker
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Misc
+.cache/
+tmp/
+temp/
+```// filepath: d:\FYP\git-task-main\ai-parser\.gitignore
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*,cover
+
+# Translations
+*.mo
+*.pot
+
+# Virtual environments
+venv/
+ENV/
+env/
+.env/
+.venv/
+env.bak/
+venv.bak/
+__pypackages__/
+
+# pyenv
+.python-version
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Local DB files
+*.db
+*.sqlite3
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-*
+*.code-workspace
+
+# macOS / Windows artifacts
+.DS_Store
+Thumbs.db
+
+# Type checking caches
+.mypy_cache/
+.pyre/
+.pytype/
+
+# Local settings / secrets
+instance/
+*.env
+.env.*
+secrets.json
+
+# Docker-related local overrides
+docker-compose.override.yml
+.env.docker
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Misc
+.cache/
+tmp/
+temp/

@@ -12,6 +12,8 @@ export class RepositoriesController {
     @UseGuards(AuthGuard('jwt'))
     async syncRepos(@Req() req: Request) {
         const user = (req as any).user;
+
+        console.log(user);
         const repos = await this.reposService.fetchAndStoreUserRepos(user.userId);
 
         return { message: 'Repositories synced', repos };
@@ -21,6 +23,7 @@ export class RepositoriesController {
     @UseGuards(AuthGuard('jwt'))
     async getRepos(@Req() req: Request){
         const user = (req as any).user;
+
         const repos = await this.reposService.getUserRepos(user.userId);
 
         return repos;

@@ -12,7 +12,12 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
             clientID: process.env.GITHUB_CLIENT_ID!,
             clientSecret: process.env.GITHUB_CLIENT_SECRET!,
             callbackURL: process.env.GITHUB_CALLBACK_URL!,
-            scope: ['read:user', 'repo', 'user:email'],
+            scope: [
+                'read:user',      // Read user profile
+                'user:email',     // Read user email
+                'repo',           // Access repositories (public + private)
+                // 'public_repo', // Use this instead if you only need public repos
+            ],
         })
     }
 
