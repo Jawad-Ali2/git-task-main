@@ -183,8 +183,16 @@ Client will run at: http://localhost:3000
 - `POST /auth/logout` - Logout and clear tokens (Protected)
 
 ### Repositories
-- `GET /repositories` - Get user repositories (Protected)
-- `GET /repositories/sync` - Sync repositories from GitHub (Protected)
+- `GET /repositories/list` - Fetch all GitHub repositories (with pagination & search) (Protected)
+- `POST /repositories/save` - Save selected repositories to database (Protected)
+- `GET /repositories` - Get user's saved repositories from database (Protected)
+
+**Repository Management:**
+- Users can browse all their GitHub repos with pagination (30 per page)
+- Search/filter repositories by name or description
+- Select up to 20 repositories to save
+- Only saved repositories will be used for task extraction
+- Repository list is cached in Redis for 10 minutes
 
 ## 🗂️ Project Structure
 

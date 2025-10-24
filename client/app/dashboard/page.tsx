@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LogOut, RefreshCw } from 'lucide-react';
+import { LogOut, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import axiosInstance from '@/lib/axios';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const { user, logout } = useAuth();
@@ -25,24 +26,15 @@ export default function DashboardPage() {
     }
   }, [searchParams, router]);
 
-  const syncRepositories = async () => {
-    setLoading(true);
-    try {
-      const response = await axiosInstance.get('/repositories/sync');
-      setRepositories(response.data.repos || []);
-    } catch (error) {
-      console.error('Failed to sync repositories:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchRepositories = async () => {
+    setLoading(true);
     try {
       const response = await axiosInstance.get('/repositories');
       setRepositories(response.data || []);
     } catch (error) {
       console.error('Failed to fetch repositories:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -75,25 +67,36 @@ export default function DashboardPage() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Your Repositories</CardTitle>
+                  <CardTitle>Your Saved Repositories</CardTitle>
                   <CardDescription>
-                    {repositories.length > 0
-                      ? `${repositories.length} repositories synced`
-                      : 'No repositories synced yet'}
+                    {loading ? 'Loading...' : `${repositories.length} repositories saved (max 20)`}
                   </CardDescription>
                 </div>
-                <Button onClick={syncRepositories} disabled={loading}>
-                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                  Sync Repositories
-                </Button>
+                <Link href="/repositories">
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Repositories
+                  </Button>
+                </Link>
               </div>
             </CardHeader>
             <CardContent>
-              {repositories.length === 0 ? (
+              {loading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                  <p className="mt-4 text-muted-foreground">Loading repositories...</p>
+                </div>
+              ) : repositories.length === 0 ? (
                 <div className="text-center py-12">
                   <p className="text-muted-foreground mb-4">
-                    Click "Sync Repositories" to fetch your GitHub repositories
+                    No repositories saved yet
                   </p>
+                  <Link href="/repositories">
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Your First Repository
+                    </Button>
+                  </Link>
                 </div>
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -105,6 +108,16 @@ export default function DashboardPage() {
                           {repo.private ? '🔒 Private' : '🌍 Public'}
                         </CardDescription>
                       </CardHeader>
+                      <CardContent>
+                        <a 
+                          href={repo.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-sm text-primary hover:underline"
+                        >
+                          View on GitHub →
+                        </a>
+                      </CardContent>
                     </Card>
                   ))}
                 </div>

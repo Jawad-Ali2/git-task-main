@@ -23,6 +23,7 @@ export class AuthService {
         if (!user) {
             user = this.userRepo.create({
                 githubId,
+                avatarUrl: profile.photos && profile.photos[0] && profile.photos[0].value,
                 name: profile.username,
                 email: email || `${profile.username}@github.com`,
                 githubAccessToken: accessToken, // Will be encrypted by @BeforeInsert

@@ -7,6 +7,9 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({nullable: true})
+  avatarUrl: string;
+
   @Column({ nullable: true })
   githubId?: string;
 
