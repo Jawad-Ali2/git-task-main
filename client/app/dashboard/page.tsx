@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { LogOut, Plus } from 'lucide-react';
+import { LogOut, Plus, ListTodo } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/authHook';
@@ -13,6 +13,7 @@ export default function DashboardPage() {
   const { user, logout } = useAuth();
   const [repositories, setRepositories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [taskCount, setTaskCount] = useState(0);
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -37,9 +38,19 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchTaskCount = async () => {
+    try {
+      const response = await axiosInstance.get('/tasks');
+      setTaskCount(response.data?.length || 0);
+    } catch (error) {
+      console.error('Failed to fetch task count:', error);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchRepositories();
+      fetchTaskCount();
     }
   }, [user]);
 

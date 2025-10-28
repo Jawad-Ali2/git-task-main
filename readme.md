@@ -37,6 +37,7 @@ Before running this project, ensure you have the following installed:
 - **TypeScript** - Type safety
 - **Axios** - HTTP client for API requests
 - **Tailwind CSS** - Utility-first CSS framework
+- **Radix UI** - Headless UI components
 - **React Context** - State management for authentication
 
 ## ⚙️ Environment Setup
@@ -141,7 +142,7 @@ npm install -D @types/passport-github2 @types/passport-jwt @types/cookie-parser
 **Frontend:**
 ```bash
 cd client
-npm install axios
+npm install axios clsx class-variance-authority tailwind-merge @radix-ui/react-select @radix-ui/react-progress
 ```
 
 ## 🔧 Running the Application
@@ -187,12 +188,20 @@ Client will run at: http://localhost:3000
 - `POST /repositories/save` - Save selected repositories to database (Protected)
 - `GET /repositories` - Get user's saved repositories from database (Protected)
 
-**Repository Management:**
-- Users can browse all their GitHub repos with pagination (30 per page)
-- Search/filter repositories by name or description
-- Select up to 20 repositories to save
-- Only saved repositories will be used for task extraction
-- Repository list is cached in Redis for 10 minutes
+### Tasks
+- `POST /tasks/scan/:repoId` - Queue a repository scan for tasks (Protected)
+- `GET /tasks/scan/:repoId/status` - Check scan status and progress (Protected)
+- `POST /tasks/scan/:repoId/cancel` - Cancel ongoing scan (Protected)
+- `GET /tasks/repository/:repoId` - Get all tasks for a specific repository (Protected)
+- `GET /tasks` - Get all tasks across all user repositories (Protected)
+
+**Task Management:**
+- Automatically extracts TODO, FIXME, HACK, NOTE, and BUG comments
+- Supports multiple programming languages
+- Real-time scan progress tracking
+- Priority assignment (high, medium, low)
+- Status tracking (pending, in_progress, completed)
+- Line number and file path tracking
 
 ## 🗂️ Project Structure
 
@@ -219,6 +228,12 @@ git-task-main/
 │   │   │   ├── repositories.controller.ts
 │   │   │   ├── repositories.service.ts
 │   │   │   └── repositories.module.ts
+│   │   ├── tasks/          # Tasks module
+│   │   │   ├── entities/
+│   │   │   │   └── task.entity.ts
+│   │   │   ├── tasks.controller.ts
+│   │   │   ├── tasks.service.ts
+│   │   │   └── tasks.module.ts
 │   │   ├── app.module.ts
 │   │   └── main.ts
 │   ├── api-tests.http     # REST Client tests

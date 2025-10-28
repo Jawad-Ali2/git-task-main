@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Search, Loader2, Check } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Search, Check, Loader2, ArrowLeft, Scan } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import axiosInstance from '@/lib/axios';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface Repository {
   githubId: string;
@@ -28,6 +29,7 @@ export default function RepositoriesPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [scanningRepos, setScanningRepos] = useState<Set<string>>(new Set());
   const router = useRouter();
 
   const fetchRepos = async (pageNum: number = 1, searchTerm: string = '') => {
@@ -104,6 +106,26 @@ export default function RepositoriesPage() {
     const nextPage = page + 1;
     setPage(nextPage);
     fetchRepos(nextPage, search);
+  };
+
+  const handleScan = async (repoId: string) => {
+    setScanningRepos((prev) => new Set(prev).add(repoId));
+    try {
+      await axiosInstance.post(`/tasks/scan/${repoId}`);
+      // Show success message or redirect after a short delay
+      setTimeout(() => {
+        router.push('/tasks');
+      }, 1000);
+    } catch (error) {
+      console.error('Failed to start scan:', error);
+      alert('Failed to start scan. Please try again.');
+    } finally {
+      setScanningRepos((prev) => {
+        const next = new Set(prev);
+        next.delete(repoId);
+        return next;
+      });
+    }
   };
 
   return (

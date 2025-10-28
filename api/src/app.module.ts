@@ -10,6 +10,9 @@ import { Repository } from './repositories/entities/repository.entity';
 import { Task } from './tasks/entities/tasks.entity';
 import { AuthModule } from './auth/auth.module';
 import { RepositoriesModule } from './repositories/repositories.module';
+import { TasksService } from './tasks/tasks.service';
+import { TasksController } from './tasks/tasks.controller';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -31,7 +34,8 @@ import { RepositoriesModule } from './repositories/repositories.module';
 
     RedisModule,
     AuthModule,
-    RepositoriesModule
+    RepositoriesModule,
+    TasksModule
   ],
   controllers: [AppController, RedisController],
   providers: [AppService],

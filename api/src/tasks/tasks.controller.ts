@@ -1,0 +1,91 @@
+import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { TasksService, ScanStatus } from './tasks.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Task } from './entities/tasks.entity';
+import { Repository } from 'typeorm';
+import { Request } from 'express';
+
+@Controller('tasks')
+@UseGuards(AuthGuard('jwt'))
+export class TasksController {
+
+    constructor(
+        private readonly tasksService: TasksService,
+        @InjectRepository(Task)
+        private readonly taskRepo: Repository<Task>,
+    ) { }
+
+
+    /**
+     * Trigger scan (instant response)
+     */
+
+    @Post('scan/:repoId')
+    async scanRepository(@Param('repoId') repoId: string, @Req() req: Request) {
+        const user = (req as any).user;
+
+        await this.tasksService.queueScan(repoId, user.userId);
+
+        return {
+            message: 'Scan queued successfully',
+            repoId,
+            status: 'queued',
+        }
+    }
+
+    /**
+     * Check scan status
+     */
+    @Get('scan/:repoId/status')
+    async getScanStatus(@Param('repoId') repoId: string): Promise<ScanStatus | { message: string; status: null }> {
+        const status = await this.tasksService.getScanStatus(repoId);
+
+        if (!status) {
+            return { message: 'No scan found', status: null }
+        }
+
+        return status;
+    }
+
+    /**
+     * Cancel ongoing scan
+     */
+    @Post('scan/:repoId/cancel')
+    async cancelScan(@Param('repoId') repoId: string): Promise<{ message: string }> {
+        await this.tasksService.cancelScan(repoId);
+
+        return { message: 'Scan cancellation requested' };
+    }
+
+    /**
+     * Get tasks for a repository
+     */
+    @Get('repository/:repoId')
+    async getRepositoryTasks(@Param('repoId') repoId: string): Promise<Task[]> {
+        const tasks = await this.taskRepo.find({
+            where: { repository: { id: repoId } },
+            order: { filePath: 'ASC', lineNumber: 'ASC' },
+        })
+
+        return tasks;
+    }
+
+
+    /**
+     * Get all tasks for user
+     */
+    @Get()
+    async getAllUserTasks(@Req() req: Request): Promise<Task[]> {
+        const user = (req as any).user;
+
+        return await this.taskRepo
+            .createQueryBuilder('task')
+            .leftJoinAndSelect('task.repository', 'repository')
+            .where('repository.userId = :userId', { userId: user.userId }) // Change this line
+            .orderBy('repository.name', 'ASC')
+            .addOrderBy('task.filePath', 'ASC')
+            .getMany();
+    }
+
+}
