@@ -27,6 +27,14 @@ export class JWTStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     async validate(payload: any) {
-        return { userId: payload.sub, githubId: payload.githubId, email: payload.email }
+        if (!payload || !payload.sub) {
+            throw new UnauthorizedException('Invalid token payload');
+        }
+
+        return {
+            userId: payload.sub,
+            githubId: payload.githubId,
+            email: payload.email,
+        };
     }
 }

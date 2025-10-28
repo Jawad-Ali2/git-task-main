@@ -1,6 +1,3 @@
-'use client';
-// TODO: Convert to server component
-
 import Link from 'next/link';
 import { ArrowRight, Github, Sparkles, TrendingUp, Zap, Users, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -9,10 +6,6 @@ import Image from 'next/image';
 import Squares from '@/components/squares-bg';
 
 export default function Home() {
-  const handleGetStarted = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/github`;
-  };
-
   return (
     <div className="min-h-screen bg-background">
       <header className="fixed top-0 w-full glass z-50 bg-background border-b border-border">
@@ -52,15 +45,16 @@ export default function Home() {
             Get AI-powered insights and never let technical debt slip through the cracks.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button
-              size="lg"
-              className="text-lg px-8 h-14 glow-primary"
-              onClick={handleGetStarted}
-            >
-              <Github className="mr-2 h-5 w-5" />
-              Get Started with GitHub
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
+            <Link href="/login">
+              <Button
+                size="lg"
+                className="text-lg px-8 h-14 glow-primary"
+              >
+                <Github className="mr-2 h-5 w-5" />
+                Get Started with GitHub
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
             {/* TODO: Can add later */}
             {/* <Button size="lg" variant="outline" className="text-lg px-8 h-14">
               View Demo
@@ -124,14 +118,15 @@ export default function Home() {
           <p className="text-xl text-foreground mb-8">
             Join thousands of developers who are transforming how they manage code quality.
           </p>
-          <Button
-            size="lg"
-            className="text-lg px-8 h-14 glow-primary"
-            onClick={handleGetStarted}
-          >
-            <Github className="mr-2 h-5 w-5" />
-            Start with Github
-          </Button>
+          <Link href="/login">
+            <Button
+              size="lg"
+              className="text-lg px-8 h-14 glow-primary"
+            >
+              <Github className="mr-2 h-5 w-5" />
+              Start with Github
+            </Button>
+          </Link>
         </div>
       </section>
 

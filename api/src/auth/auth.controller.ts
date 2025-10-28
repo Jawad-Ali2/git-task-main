@@ -35,6 +35,7 @@ export class AuthController {
         const refreshToken = req.cookies['refreshToken'];
 
         if (!refreshToken) {
+            // TODO: should logout maybe instead this.clearAuthCookies(res); 
             return res.status(401).json({ message: 'No refresh token' });
         }
 
@@ -46,6 +47,7 @@ export class AuthController {
 
             return res.json({ message: 'Tokens refreshed' });
         } catch (error) {
+            this.clearAuthCookies(res);
             return res.status(401).json({ message: 'Invalid refresh token' });
         }
     }
@@ -57,12 +59,8 @@ export class AuthController {
         
         // Clear refresh token from DB
         await this.authService.logout(user.userId);
-        
-        // Optional: Revoke GitHub token (if you want full logout)
-        // await this.authService.revokeGithubToken(user.userId);
 
-        res.clearCookie('accessToken');
-        res.clearCookie('refreshToken');
+        this.clearAuthCookies(res);
 
         return res.json({ message: 'Logged out successfully' });
     }
@@ -87,5 +85,10 @@ export class AuthController {
             maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
             path: '/',
         });
+    }
+
+    private clearAuthCookies(res: Response) {
+        res.clearCookie('accessToken', { path: '/' });
+        res.clearCookie('refreshToken', { path: '/' });
     }
 }
