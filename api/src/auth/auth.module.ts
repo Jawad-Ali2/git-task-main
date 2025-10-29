@@ -8,6 +8,7 @@ import { User } from 'src/users/entities/user.entity';
 import { GithubStrategy } from './strategies/github.strategy';
 import { JWTStrategy } from './strategies/jwt.strategy';
 import { ConfigService } from '@nestjs/config';
+import { WebhooksModule } from '@/webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ConfigService } from '@nestjs/config';
         signOptions: { expiresIn: config.get<string>('JWT_ACCESS_EXPIRES_IN') as any || '15m' as any },
       }),
     }),
+    WebhooksModule
   ],
   controllers: [AuthController],
   providers: [

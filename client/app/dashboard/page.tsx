@@ -49,6 +49,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (user) {
+      console.log('Fetching repositories for user:', user);
       fetchRepositories();
       fetchTaskCount();
     }
@@ -61,7 +62,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold">GitTask Dashboard</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
-              {user?.email}
+              {user?.name}
             </span>
             <Button variant="outline" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4 mr-2" />

@@ -1,15 +1,19 @@
-import { Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
+import { WebhooksService } from '@/webhooks/webhooks.service';
+import { User } from '@/users/entities/user.entity';
 
 @Controller('auth')
 export class AuthController {
-    constructor(private readonly authService: AuthService) {}
+    constructor(private readonly authService: AuthService,
+        private readonly webhooksService: WebhooksService
+    ) { }
 
     @Get('github')
     @UseGuards(AuthGuard('github'))
-    async githubAuth() {}
+    async githubAuth() { }
 
     @Get('github/callback')
     @UseGuards(AuthGuard('github'))
@@ -21,13 +25,40 @@ export class AuthController {
 
         // Redirect to frontend with success
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+        if (!result.user.githubInstallationId) {
+            const appName = process.env.GITHUB_APP_NAME || 'git-task-dev';
+
+            return res.redirect(`${frontendUrl}/install-app?redirect=https://github.com/apps/${appName}/installations/new&return=${frontendUrl}/dashboard`);
+        }
         res.redirect(`${frontendUrl}/dashboard?auth=success`);
+    }
+
+    @Get('github-app/callback')
+    @UseGuards(AuthGuard('jwt'))
+    async githubAppCallback(
+        @Query('installation_id') installationId: string,
+        @Query('setup_action') setupAction: string,
+        @Req() req: Request) {
+        const user = (req as any).user;
+
+        if (!installationId) {
+            throw new BadRequestException('Missing installation_id');
+        }
+
+        await this.webhooksService.linkInstallationToUser(user.id, parseInt(installationId));
+
+        return {
+            status: 302,
+            url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?installation_linked=success`
+        }
     }
 
     @Get('profile')
     @UseGuards(AuthGuard('jwt'))
     getProfile(@Req() req: Request) {
-        return { message: 'Authenticated', user: (req as any).user }
+        const user = (req as any).user as User;
+        return { message: 'Authenticated', user }
     }
 
     @Post('refresh')
@@ -56,7 +87,7 @@ export class AuthController {
     @UseGuards(AuthGuard('jwt'))
     async logout(@Req() req: Request, @Res() res: Response) {
         const user = (req as any).user;
-        
+
         // Clear refresh token from DB
         await this.authService.logout(user.userId);
 
