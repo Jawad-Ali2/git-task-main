@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
+import axios from 'axios';
 
 @Injectable()
 export class AuthService {
@@ -33,6 +34,15 @@ export class AuthService {
             user.githubAccessToken = accessToken; // Update & re-encrypt
         }
 
+        // Fetch Github App Installation ID
+        const installationId = await this.fetchInstallationId(accessToken);
+        if (installationId) {
+            user.githubInstallationId = installationId;
+            console.log(`Found Installation ID: ${installationId} for user ${user.name}`);
+        } else {
+            console.log(`No Installation ID found for user ${user.name}`);
+        }
+
         await this.userRepo.save(user);
 
         const tokens = await this.generateTokens(user);
@@ -41,9 +51,36 @@ export class AuthService {
         return { user, ...tokens }
     }
 
+    /**
+     * Fetch the GitHub App Installation ID for the user
+     * @param accessToken 
+     */
+    private async fetchInstallationId(accessToken: string): Promise<number | null> {
+        try {
+            const response = await axios.get('https://api.github.com/user/installations', {
+                headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    Accept: 'application/vnd.github+json',
+                },
+            });
+
+            const appId = parseInt(process.env.GITHUB_APP_ID!);
+            const installations = response.data?.installations || [];
+
+            const installation = installations.find(
+                (inst: any) => inst.app_id === appId,
+            );
+
+            return installation ? installation.id : null;
+        } catch (error) {
+            console.error('Error fetching installation ID:', error);
+            return null;
+        }
+    }
+
     async generateTokens(user: User) {
-        const payload = { sub: user.id, githubId: user.githubId, email: user.email };
-        
+        const payload = { sub: user.id, name: user.name, githubId: user.githubId, avatarUrl: user.avatarUrl };
+
         const [accessToken, refreshToken] = await Promise.all([
             this.jwtService.signAsync(payload), // Uses JWT_ACCESS_SECRET (15m)
             this.refreshJwtService.signAsync(payload), // Uses JWT_REFRESH_SECRET (7d)

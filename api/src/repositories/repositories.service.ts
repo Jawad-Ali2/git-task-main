@@ -27,7 +27,7 @@ export class RepositoriesService {
      */
     async fetchGithubRepos(userId: string, page: number = 1, perPage: number = 30, search?: string) {
         this.logger.log(`Fetching GitHub repos for user ${userId} (page: ${page}, perPage: ${perPage})`);
-        
+
         const user = await this.user
             .createQueryBuilder('user')
             .addSelect('user.githubAccessToken')
@@ -40,7 +40,7 @@ export class RepositoriesService {
         }
 
         const decryptedToken = user.decryptGithubToken();
-        
+
         if (!decryptedToken) {
             this.logger.error(`Failed to decrypt GitHub token for user ${userId}`);
             throw new UnauthorizedException('Failed to decrypt GitHub access token');
@@ -71,7 +71,7 @@ export class RepositoriesService {
             // Filter by search term if provided
             if (search) {
                 const searchLower = search.toLowerCase();
-                repos = repos.filter(repo => 
+                repos = repos.filter(repo =>
                     repo.name.toLowerCase().includes(searchLower) ||
                     (repo.description && repo.description.toLowerCase().includes(searchLower))
                 );
@@ -181,7 +181,7 @@ export class RepositoriesService {
             private: boolean;
             user: User;
         }> = [];
-        
+
         for (const repo of validRepos) {
             const exists = await this.repoEntity.findOne({
                 where: { githubId: repo.githubId, user: { id: userId } }
@@ -204,7 +204,7 @@ export class RepositoriesService {
      * Get only saved repositories from database.
      */
     async getSavedRepos(userId: string) {
-        return this.repoEntity.find({ 
+        return this.repoEntity.find({
             where: { user: { id: userId } },
             order: { name: 'ASC' }
         });
@@ -218,6 +218,51 @@ export class RepositoriesService {
         if (keys.length > 0) {
             await this.redis.del(...keys);
             this.logger.log(`Invalidated ${keys.length} cache keys for user ${userId}`);
+        }
+    }
+
+    /**
+     * Find a repository by its GitHub ID and user ID.
+     * @param githubId
+     * @param userId 
+     */
+    async findByGithubId(githubId: string, userId: string) {
+        return await this.repoEntity.findOne({
+            where: { githubId, user: { id: userId } }
+        });
+    }
+
+    /**
+     * Get count of monitored repositories for a user.
+     */
+    async countMonitoredRepos(userId: string): Promise<number> {
+        return this.repoEntity.count({
+            where: { user: { id: userId } }
+        });
+    }
+
+    /**
+     * Check if user can add more repositories
+     */
+    async canAddMoreRepos(userId: string, limit: number = 20): Promise<boolean> {
+        const count = await this.countMonitoredRepos(userId);
+        return count < limit;
+    }
+
+    /**
+     * Remove a repository by GitHub ID (used by webhook auto-removal)
+     */
+    async removeByGithubId(userId: string, githubId: string): Promise<void> {
+        const repo = await this.repoEntity.findOne({
+            where: { githubId, user: { id: userId } }
+        });
+
+        if (repo) {
+            await this.repoEntity.remove(repo);
+            this.logger.log(`Removed repository ${githubId} for user ${userId}`);
+            
+            // Invalidate cache
+            await this.invalidateUserCache(userId);
         }
     }
 }

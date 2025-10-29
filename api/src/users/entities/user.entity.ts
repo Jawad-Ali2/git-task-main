@@ -7,7 +7,7 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({nullable: true})
+  @Column({ nullable: true })
   avatarUrl: string;
 
   @Column({ nullable: true })
@@ -28,6 +28,9 @@ export class User {
   @Column({ default: 'developer' })
   role: string; // developer | manager | admin
 
+  @Column({ nullable: true, unique: true })
+  githubInstallationId?: number; // GitHub App installation ID
+
   @OneToMany(() => Repository, (repo) => repo.user)
   repositories: Repository[];
 
@@ -46,13 +49,13 @@ export class User {
     const algorithm = 'aes-256-gcm';
     const key = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex'); // 32 bytes
     const iv = crypto.randomBytes(16); // Initialization vector
-    
+
     const cipher = crypto.createCipheriv(algorithm, key, iv);
     let encrypted = cipher.update(token, 'utf8', 'hex');
     encrypted += cipher.final('hex');
-    
+
     const authTag = cipher.getAuthTag();
-    
+
     // Format: iv:authTag:encrypted
     return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
   }
@@ -60,23 +63,23 @@ export class User {
   // Decryption method (use when needed)
   decryptGithubToken(): string | undefined {
     if (!this.githubAccessToken) return undefined;
-    
+
     try {
       const parts = this.githubAccessToken.split(':');
       if (parts.length !== 3) return this.githubAccessToken; // Not encrypted
-      
+
       const [ivHex, authTagHex, encrypted] = parts;
       const algorithm = 'aes-256-gcm';
       const key = Buffer.from(process.env.ENCRYPTION_KEY!, 'hex');
       const iv = Buffer.from(ivHex, 'hex');
       const authTag = Buffer.from(authTagHex, 'hex');
-      
+
       const decipher = crypto.createDecipheriv(algorithm, key, iv);
       decipher.setAuthTag(authTag);
-      
+
       let decrypted = decipher.update(encrypted, 'hex', 'utf8');
       decrypted += decipher.final('utf8');
-      
+
       return decrypted;
     } catch (error) {
       console.error('Decryption failed:', error);

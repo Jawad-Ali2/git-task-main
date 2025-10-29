@@ -13,6 +13,7 @@ import { RepositoriesModule } from './repositories/repositories.module';
 import { TasksService } from './tasks/tasks.service';
 import { TasksController } from './tasks/tasks.controller';
 import { TasksModule } from './tasks/tasks.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -35,7 +36,8 @@ import { TasksModule } from './tasks/tasks.module';
     RedisModule,
     AuthModule,
     RepositoriesModule,
-    TasksModule
+    TasksModule,
+    WebhooksModule
   ],
   controllers: [AppController, RedisController],
   providers: [AppService],

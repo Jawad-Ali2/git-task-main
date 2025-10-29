@@ -9,7 +9,7 @@ import { Request } from 'express';
 export class JWTStrategy extends PassportStrategy(Strategy, 'jwt') {
     constructor(private readonly configService: ConfigService) {
         const secret = configService.get<string>('JWT_ACCESS_SECRET');
-        
+
         if (!secret) {
             throw new Error('JWT_ACCESS_SECRET is not defined in environment variables');
         }
@@ -33,8 +33,9 @@ export class JWTStrategy extends PassportStrategy(Strategy, 'jwt') {
 
         return {
             userId: payload.sub,
+            name: payload.name,
+            avatarUrl: payload.avatarUrl,
             githubId: payload.githubId,
-            email: payload.email,
         };
     }
 }
