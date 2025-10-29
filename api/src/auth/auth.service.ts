@@ -80,7 +80,7 @@ export class AuthService {
     }
 
     async logout(userId: string) {
-        await this.userRepo.update(userId, { refreshToken: undefined });
+        await this.userRepo.update(userId, { refreshToken: null as any });
     }
 
     private hashToken(token: string): string {

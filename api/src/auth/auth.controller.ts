@@ -21,7 +21,7 @@ export class AuthController {
 
         // Redirect to frontend with success
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        res.redirect(`${frontendUrl}/dashboard?auth=success`);
+        res.redirect(`${frontendUrl}/dashboard`);
     }
 
     @Get('profile')
