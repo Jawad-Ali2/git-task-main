@@ -4,7 +4,6 @@ import {
   BookOpen,
   Bot,
   FolderGit2,
-  LayoutDashboard,
   Settings2,
   ListTodo,
 } from "lucide-react";

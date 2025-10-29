@@ -7,7 +7,7 @@ import Squares from '@/components/squares-bg';
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-bg">
       <header className="fixed top-0 w-full glass z-50 bg-background border-b border-border">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-2">

@@ -45,6 +45,14 @@ export function NavMain({
             </Link>
           </SidebarMenuButton>
         </SidebarMenuItem>
+        <SidebarMenuItem key="repositories">
+          <SidebarMenuButton asChild>
+            <Link href="/dashboard/repositories">
+              <LayoutDashboard />
+              <span>Repositories</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
         {items.map((item) => (
           <Collapsible
             key={item.title}
