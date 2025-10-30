@@ -143,7 +143,6 @@ export class TasksService {
             }
 
             const token = repo.user.decryptGithubToken();
-            console.log(token, repo.user);
             if (!token) {
                 throw new Error('Invalid GitHub token');
             }
@@ -171,7 +170,7 @@ export class TasksService {
             const relevantFiles = tree.tree
                 .filter(item => item.type === 'blob')
                 .filter(item => this.shouldProcessFile(item.path || ''))
-                .slice(0, 100) // Limit to first 100 files for demo
+                .slice(0, 100) // TODO: Limit to first 100 files for demo
 
             this.logger.log(`Processing ${relevantFiles.length} files for repo ${repoName}`);
 
@@ -290,25 +289,36 @@ export class TasksService {
      * Extract tasks using regex (simple parser for now)
      */
     private extractTasksFromFiles(files: any[]) {
-        const tasks: Array<{ description: string; filePath: any; lineNumber: number; status: string }> = [];
+        const tasks: Array<{ 
+            description: string; 
+            type: string;
+            priority: string;
+            filePath: any; 
+            lineNumber: number; 
+            status: string 
+        }> = [];
+        
         const taskPatterns = [
-            /\/\/\s*TODO:?\s*(.+)/gi,
-            /\/\/\s*FIXME:?\s*(.+)/gi,
-            /\/\/\s*HACK:?\s*(.+)/gi,
-            /#\s*TODO:?\s*(.+)/gi,
-            /#\s*FIXME:?\s*(.+)/gi,
+            { pattern: /\/\/\s*TODO:?\s*(.+)/gi, type: 'TODO', priority: 'medium' },
+            { pattern: /\/\/\s*FIXME:?\s*(.+)/gi, type: 'FIXME', priority: 'high' },
+            { pattern: /\/\/\s*HACK:?\s*(.+)/gi, type: 'HACK', priority: 'medium' },
+            { pattern: /#\s*TODO:?\s*(.+)/gi, type: 'TODO', priority: 'medium' },
+            { pattern: /#\s*FIXME:?\s*(.+)/gi, type: 'FIXME', priority: 'high' },
+            { pattern: /\/\/\s*BUG:?\s*(.+)/gi, type: 'BUG', priority: 'high' },
+            { pattern: /\/\/\s*NOTE:?\s*(.+)/gi, type: 'NOTE', priority: 'low' },
         ];
 
         for (const file of files) {
             const lines = file.content.split('\n');
 
             lines.forEach((line, index) => {
-
-                for (const pattern of taskPatterns) {
+                for (const { pattern, type, priority } of taskPatterns) {
                     const matches = line.matchAll(pattern);
                     for (const match of matches) {
                         tasks.push({
                             description: match[1].trim(),
+                            type,
+                            priority,
                             filePath: file.path,
                             lineNumber: index + 1,
                             status: 'open',

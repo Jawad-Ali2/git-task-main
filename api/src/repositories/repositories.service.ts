@@ -5,6 +5,9 @@ import { Repository } from 'typeorm';
 import { Repository as RepoEntity } from './entities/repository.entity';
 import { Octokit } from '@octokit/rest';
 import Redis from 'ioredis';
+import { createAppAuth } from '@octokit/auth-app';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 @Injectable()
 export class RepositoriesService {
@@ -20,6 +23,43 @@ export class RepositoriesService {
 
         @Inject('REDIS_CLIENT') private readonly redis: Redis
     ) { }
+
+    /**
+     * Generate GitHub App installation token
+     * This token is short-lived (1 hour) and provides access to repositories installed via GitHub App
+     */
+    private async getInstallationToken(installationId: number): Promise<string> {
+        const appId = process.env.GITHUB_APP_ID;
+        const privateKeyPath = process.env.GITHUB_APP_PRIVATE_KEY_PATH;
+
+        if (!appId || !privateKeyPath) {
+            this.logger.error('GitHub App configuration missing (GITHUB_APP_ID or GITHUB_APP_PRIVATE_KEY_PATH)');
+            throw new Error('GitHub App configuration missing');
+        }
+
+        try {
+            // Read the private key from file
+            const privateKey = readFileSync(join(process.cwd(), privateKeyPath), 'utf-8');
+
+            // Create app authentication
+            const auth = createAppAuth({
+                appId: parseInt(appId),
+                privateKey,
+            });
+
+            // Get installation-specific token
+            const installationAuth = await auth({
+                type: 'installation',
+                installationId,
+            });
+
+            this.logger.log(`Generated installation token for installation ID: ${installationId}`);
+            return installationAuth.token;
+        } catch (error) {
+            this.logger.error(`Failed to generate installation token: ${error.message}`);
+            throw new Error(`Failed to generate GitHub App installation token: ${error.message}`);
+        }
+    }
 
     /**
      * Fetch repositories from GitHub API with pagination and caching.
@@ -121,8 +161,11 @@ export class RepositoriesService {
     /**
      * Save selected repositories to the database.
      * Enforces a maximum limit per user.
+     * @param userId - The user ID
+     * @param githubRepoIds - Array of GitHub repository IDs to save
+     * @param useInstallationToken - If true, uses GitHub App installation token instead of OAuth token (for webhook events)
      */
-    async saveSelectedRepos(userId: string, githubRepoIds: string[]) {
+    async saveSelectedRepos(userId: string, githubRepoIds: string[], useInstallationToken: boolean = false) {
         this.logger.log(`Saving ${githubRepoIds.length} repos for user ${userId}`);
 
         const user = await this.user
@@ -131,8 +174,8 @@ export class RepositoriesService {
             .where('user.id = :userId', { userId })
             .getOne();
 
-        if (!user || !user.githubAccessToken) {
-            throw new UnauthorizedException('User not found or missing GitHub access token!');
+        if (!user) {
+            throw new UnauthorizedException('User not found!');
         }
 
         // Check current saved count
@@ -148,17 +191,45 @@ export class RepositoriesService {
             );
         }
 
-        const decryptedToken = user.decryptGithubToken();
-        if (!decryptedToken) {
-            throw new UnauthorizedException('Failed to decrypt GitHub access token');
+        let octokit: Octokit;
+        let allRepos: any[] = [];
+
+        // Use installation token for webhook events, OAuth token for manual saves
+        if (useInstallationToken && user.githubInstallationId) {
+            const installationToken = await this.getInstallationToken(user.githubInstallationId);
+            octokit = new Octokit({ auth: installationToken });
+            this.logger.log(`Using GitHub App installation token for user ${userId}`);
+
+            // For GitHub App: Use installation-specific endpoint
+            try {
+                const response = await octokit.apps.listReposAccessibleToInstallation({
+                    per_page: 100
+                });
+                // Extract repositories from the response
+                allRepos = response.data.repositories || [];
+                this.logger.log(`Fetched ${allRepos.length} repositories via GitHub App installation`);
+            } catch (error) {
+                this.logger.error(`Failed to fetch repos via installation: ${error.message}`);
+                throw new Error(`Failed to fetch repositories via GitHub App: ${error.message}`);
+            }
+        } else {
+            // Fallback to OAuth token
+            if (!user.githubAccessToken) {
+                throw new UnauthorizedException('User missing GitHub access token!');
+            }
+
+            const decryptedToken = user.decryptGithubToken();
+            if (!decryptedToken) {
+                throw new UnauthorizedException('Failed to decrypt GitHub access token');
+            }
+            octokit = new Octokit({ auth: decryptedToken });
+            this.logger.log(`Using OAuth token for user ${userId}`);
+
+            // For OAuth: Use standard user repos endpoint
+            allRepos = await octokit.paginate(octokit.repos.listForAuthenticatedUser, {
+                per_page: 100
+            });
         }
-
-        const octokit = new Octokit({ auth: decryptedToken });
-
-        // Fetch all repos to get details by ID
-        const allRepos = await octokit.paginate(octokit.repos.listForAuthenticatedUser, {
-            per_page: 100
-        });
 
         const repoMap = new Map(allRepos.map(r => [r.id.toString(), r]));
 
@@ -192,12 +263,19 @@ export class RepositoriesService {
         }
 
         if (newRepos.length > 0) {
-            await this.repoEntity.save(newRepos);
+            const savedRepos = await this.repoEntity.save(newRepos);
             this.logger.log(`Saved ${newRepos.length} new repos for user ${userId}`);
+            
+            // Invalidate cache
+            await this.invalidateUserCache(userId);
+            
+            // Return the saved repositories with their database IDs
+            return savedRepos;
         }
 
-        // Invalidate cache
+        // Invalidate cache even if no new repos (to refresh isSaved status)
         await this.invalidateUserCache(userId);
+        return [];
     }
 
     /**
@@ -264,5 +342,24 @@ export class RepositoriesService {
             // Invalidate cache
             await this.invalidateUserCache(userId);
         }
+    }
+
+    /**
+     * Delete a repository by database ID
+     */
+    async deleteRepository(userId: string, repoId: string): Promise<void> {
+        const repo = await this.repoEntity.findOne({
+            where: { id: repoId, user: { id: userId } }
+        });
+
+        if (!repo) {
+            throw new Error('Repository not found or access denied');
+        }
+
+        await this.repoEntity.remove(repo);
+        this.logger.log(`Deleted repository ${repoId} for user ${userId}`);
+        
+        // Invalidate cache
+        await this.invalidateUserCache(userId);
     }
 }

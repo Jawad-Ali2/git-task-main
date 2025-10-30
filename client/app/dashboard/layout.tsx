@@ -3,6 +3,7 @@
 import { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { AppSidebar } from "@/components/app-sidebar";
+import { ScanNotificationContainer } from "@/components/scan-notification";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -106,6 +107,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           {children}
         </div>
       </SidebarInset>
+      
+      {/* Scan Notification System */}
+      <ScanNotificationContainer />
     </SidebarProvider>
   );
 }

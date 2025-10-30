@@ -37,7 +37,7 @@ export class WebhooksService {
         if (repositories_added && repositories_added.length > 0) {
             const repoIds = repositories_added.map(repo => repo.id.toString());
             try {
-                await this.repositoriesService.saveSelectedRepos(user.id, repoIds);
+                await this.repositoriesService.saveSelectedRepos(user.id, repoIds, true);
                 this.logger.log(`✅ Auto-added ${repoIds.length} repositories for user ${user.id}`);
             } catch (error) {
                 this.logger.error(`Failed to auto-add repositories: ${error.message}`);
@@ -84,7 +84,7 @@ export class WebhooksService {
                 if (repositories && repositories.length > 0) {
                     const repoIds = repositories.map(repo => repo.id.toString());
                     try {
-                        await this.repositoriesService.saveSelectedRepos(user.id, repoIds);
+                        await this.repositoriesService.saveSelectedRepos(user.id, repoIds, true);
                         this.logger.log(`✅ Auto-added ${repoIds.length} repositories for user ${user.id}`);
                     } catch (error) {
                         this.logger.error(`Failed to auto-add repositories: ${error.message}`);

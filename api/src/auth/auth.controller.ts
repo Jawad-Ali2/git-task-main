@@ -18,20 +18,26 @@ export class AuthController {
     @Get('github/callback')
     @UseGuards(AuthGuard('github'))
     async githubCallback(@Req() req: Request, @Res() res: Response) {
-        const result = req.user as any;
 
-        // Set secure HTTP-only cookies
-        this.setAuthCookies(res, result.accessToken, result.refreshToken);
+        try {
 
-        // Redirect to frontend with success
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const result = req.user as any;
 
-        if (!result.user.githubInstallationId) {
-            const appName = process.env.GITHUB_APP_NAME || 'git-task-dev';
+            // Set secure HTTP-only cookies
+            this.setAuthCookies(res, result.accessToken, result.refreshToken);
 
-            return res.redirect(`${frontendUrl}/install-app?redirect=https://github.com/apps/${appName}/installations/new&return=${frontendUrl}/dashboard`);
+            // Redirect to frontend with success
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+            if (!result.user.githubInstallationId) {
+                const appName = process.env.GITHUB_APP_NAME || 'git-task-dev';
+
+                return res.redirect(`${frontendUrl}/install-app?redirect=https://github.com/apps/${appName}/installations/new&return=${frontendUrl}/dashboard`);
+            }
+            res.redirect(`${frontendUrl}/dashboard?auth=success`);
+        } catch (error) {
+            res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?auth=failed`);
         }
-        res.redirect(`${frontendUrl}/dashboard?auth=success`);
     }
 
     @Get('github-app/callback')
