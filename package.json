@@ -1,0 +1,21 @@
+{
+  "name": "git-task-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GitTask - GitHub TODO/FIXME tracker",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:client\" \"npm run dev:redis\"",
+    "dev:api": "cd api && npm run start:dev",
+    "dev:client": "cd client && npm run dev",
+    "dev:redis": "redis-server",
+    "install:all": "npm run install:api && npm run install:client",
+    "install:api": "cd api && npm install",
+    "install:client": "cd client && npm install",
+    "build": "npm run build:api && npm run build:client",
+    "build:api": "cd api && npm run build",
+    "build:client": "cd client && npm run build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
