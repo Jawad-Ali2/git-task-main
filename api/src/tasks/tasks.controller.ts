@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { TasksService, ScanStatus } from './tasks.service';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -86,6 +86,76 @@ export class TasksController {
             .orderBy('repository.name', 'ASC')
             .addOrderBy('task.filePath', 'ASC')
             .getMany();
+    }
+
+    /**
+     * Update task status
+     */
+    @Patch(':taskId/status')
+    async updateTaskStatus(
+        @Param('taskId') taskId: string,
+        @Body() body: { status: 'pending' | 'in-progress' | 'completed' }
+    ): Promise<Task> {
+        const task = await this.taskRepo.findOne({ where: { id: taskId } });
+
+        if (!task) {
+            throw new Error('Task not found');
+        }
+
+        task.status = body.status;
+        return await this.taskRepo.save(task);
+    }
+
+    /**
+     * Update task priority
+     */
+    @Patch(':taskId/priority')
+    async updateTaskPriority(
+        @Param('taskId') taskId: string,
+        @Body() body: { priority: 'low' | 'medium' | 'high' }
+    ): Promise<Task> {
+        const task = await this.taskRepo.findOne({ where: { id: taskId } });
+
+        if (!task) {
+            throw new Error('Task not found');
+        }
+
+        task.priority = body.priority;
+        return await this.taskRepo.save(task);
+    }
+
+    /**
+     * Get task statistics for user
+     */
+    @Get('stats')
+    async getTaskStats(@Req() req: Request) {
+        const user = (req as any).user;
+
+        const tasks = await this.taskRepo
+            .createQueryBuilder('task')
+            .leftJoinAndSelect('task.repository', 'repository')
+            .where('repository.userId = :userId', { userId: user.userId })
+            .getMany();
+
+        const stats = {
+            total: tasks.length,
+            byStatus: {
+                pending: tasks.filter(t => t.status === 'pending').length,
+                'in-progress': tasks.filter(t => t.status === 'in-progress').length,
+                completed: tasks.filter(t => t.status === 'completed').length,
+            },
+            byType: tasks.reduce((acc, task) => {
+                acc[task.type] = (acc[task.type] || 0) + 1;
+                return acc;
+            }, {} as Record<string, number>),
+            byPriority: {
+                high: tasks.filter(t => t.priority === 'high').length,
+                medium: tasks.filter(t => t.priority === 'medium').length,
+                low: tasks.filter(t => t.priority === 'low').length,
+            },
+        };
+
+        return stats;
     }
 
 }

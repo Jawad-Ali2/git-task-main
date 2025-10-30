@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { RepositoriesService } from './repositories.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
@@ -58,9 +58,20 @@ export class RepositoriesController {
         }
 
 
-        await this.reposService.saveSelectedRepos(user.userId, repositoryIds);
+        const savedRepos = await this.reposService.saveSelectedRepos(user.userId, repositoryIds);
 
-        return { message: 'Repositories saved successfully', count: repositoryIds.length };
+        // Return saved repositories with metadata for scan notifications
+        return {
+            message: 'Repositories saved successfully',
+            count: savedRepos.length,
+            repositories: savedRepos.map(repo => ({
+                id: repo.id,
+                githubId: repo.githubId,
+                name: repo.name,
+                fullName: repo.name, // You might want to add fullName to the entity
+                needsScan: true,
+            })),
+        };
     }
 
     @Get()
@@ -69,6 +80,14 @@ export class RepositoriesController {
         const user = (req as any).user;
         const repos = await this.reposService.getSavedRepos(user.userId);
         return repos;
+    }
+
+    @Delete(':repoId')
+    @UseGuards(AuthGuard('jwt'))
+    async deleteRepository(@Req() req: Request, @Param('repoId') repoId: string) {
+        const user = (req as any).user;
+        await this.reposService.deleteRepository(user.userId, repoId);
+        return { message: 'Repository removed successfully' };
     }
 
 }
