@@ -35,7 +35,7 @@ export default function Home() {
             <Sparkles className="w-4 h-4 mr-2" />
             Transform your codebase TODOs into insights
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 pb-3 bg-linear-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 pb-3">
             Transform TODOs into
             <br />
             Actionable Intelligence

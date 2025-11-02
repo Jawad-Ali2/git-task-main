@@ -3,6 +3,7 @@ import authReducer from './authSlice';
 import scanNotificationReducer from './scanNotificationSlice';
 import dashboardReducer from './dashboardSlice';
 import tasksReducer from './tasksSlice';
+import repositoriesReducer from './repositoriesSlice';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     scanNotification: scanNotificationReducer,
     dashboard: dashboardReducer,
     tasks: tasksReducer,
+    repositories: repositoriesReducer,
   },
 });
 

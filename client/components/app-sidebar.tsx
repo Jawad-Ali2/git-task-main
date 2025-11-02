@@ -1,108 +1,61 @@
 "use client";
 
-import {
-  BookOpen,
-  Bot,
-  FolderGit2,
-  Settings2,
-  ListTodo,
-} from "lucide-react";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
-import { SidebarHeader, SidebarContent, SidebarFooter, SidebarRail, Sidebar, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
+import { SidebarHeader, SidebarContent, SidebarFooter, Sidebar } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/authHook";
+import { Bot, Folder, FolderGit2, FolderLock, LayoutDashboard, ListTodo } from "lucide-react";
 import Image from "next/image";
+import { NavProjects } from "./nav-projects";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import { fetchRepositories, selectRepositories, selectRepositoriesLoading } from "@/redux/repositoriesSlice";
+import { useEffect } from "react";
 
-const data = {
-  navMain: [
-    {
-      title: "Repositories",
-      url: "repositories",
-      icon: FolderGit2,
-      items: [
-        {
-          title: "All Repositories",
-          url: "repositories",
-        },
-        {
-          title: "Add New",
-          url: "repositories/add",
-        },
-      ],
-    },
-    {
-      title: "Tasks",
-      url: "tasks",
-      icon: ListTodo,
-      items: [
-        {
-          title: "All Tasks",
-          url: "tasks",
-        },
-        {
-          title: "By Priority",
-          url: "tasks/priority",
-        },
-        {
-          title: "By Status",
-          url: "tasks/status",
-        },
-      ],
-    },
-    {
-      title: "AI Insights",
-      url: "insights",
-      icon: Bot,
-      items: [
-        {
-          title: "Summary",
-          url: "insights",
-        },
-        {
-          title: "Recommendations",
-          url: "insights/recommendations",
-        },
-      ],
-    },
-    {
-      title: "Documentation",
-      url: "docs",
-      icon: BookOpen,
-      items: [
-        {
-          title: "Getting Started",
-          url: "docs/getting-started",
-        },
-        {
-          title: "API Reference",
-          url: "docs/api",
-        },
-      ],
-    },
-    {
-      title: "Settings",
-      url: "settings",
-      icon: Settings2,
-      items: [
-        {
-          title: "Profile",
-          url: "settings/profile",
-        },
-        {
-          title: "Integrations",
-          url: "settings/integrations",
-        },
-        {
-          title: "Preferences",
-          url: "settings/preferences",
-        },
-      ],
-    },
-  ],
-};
+const mainMenuItems = [
+  {
+    key: "dashboard",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+    label: "Dashboard",
+  },
+  {
+    key: "repositories",
+    href: "/dashboard/repositories",
+    icon: FolderGit2,
+    label: "Repositories",
+  },
+  {
+    key: "tasks",
+    href: "/dashboard/tasks",
+    icon: ListTodo,
+    label: "All Tasks",
+  },
+  {
+    key: "ai-insights",
+    href: "/ai-insights",
+    icon: Bot,
+    label: "AI Insights",
+  },
+]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
+  const dispatch = useAppDispatch();
+  const repositories = useAppSelector(selectRepositories);
+  const repositoriesLoading = useAppSelector(selectRepositoriesLoading);
+
+  useEffect(() => {
+    if (user) {
+      dispatch(fetchRepositories());
+    }
+  }, [user, dispatch]);
+
+  const projects = repositories.map(repo => ({
+    name: repo.name,
+    url: `/dashboard/repositories/${repo.id}/tasks`,
+    icon: repo.private ? FolderLock : Folder,
+    id: repo.id,
+  }));
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -124,7 +77,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </div>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={mainMenuItems} />
+        {!repositoriesLoading && projects.length > 0 && (
+          <NavProjects projects={projects} />
+        )}
       </SidebarContent>
       <SidebarFooter>
         {user && (

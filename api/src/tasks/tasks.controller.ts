@@ -65,6 +65,7 @@ export class TasksController {
     async getRepositoryTasks(@Param('repoId') repoId: string): Promise<Task[]> {
         const tasks = await this.taskRepo.find({
             where: { repository: { id: repoId } },
+            relations: ['repository'],
             order: { filePath: 'ASC', lineNumber: 'ASC' },
         })
 
