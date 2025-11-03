@@ -26,6 +26,7 @@ export interface ScanStatus {
 export class TasksService {
     private readonly logger = new Logger(TasksService.name);
     private readonly QUEUE_KEY = 'tasks_queue';
+    private readonly SCAN_LOCK_PREFIX = 'scan:lock:'; // Redis key for scan locks
     private isProcessing = false;
 
 
@@ -43,9 +44,43 @@ export class TasksService {
     }
 
     /**
+     * Publish scan event to Redis (for SSE)
+     */
+    private async publishScanEvent(repoId: string, event: string, data: any) {
+        const channel = `scan:${repoId}`;
+        await this.redis.publish(channel, JSON.stringify({ event, data, timestamp: Date.now() }));
+        this.logger.log(`📡 Published ${event} to ${channel}`);
+    }
+
+    /**
+     * Acquire scan lock (prevents duplicate scans)
+     */
+    private async acquireScanLock(repoId: string): Promise<boolean> {
+        const lockKey = `${this.SCAN_LOCK_PREFIX}${repoId}`;
+        // SET NX EX 3600 = Set if Not eXists, EXpire in 1 hour
+        const acquired = await this.redis.set(lockKey, '1', 'EX', 3600, 'NX');
+        return acquired === 'OK';
+    }
+
+    /**
+     * Release scan lock
+     */
+    private async releaseScanLock(repoId: string): Promise<void> {
+        const lockKey = `${this.SCAN_LOCK_PREFIX}${repoId}`;
+        await this.redis.del(lockKey);
+    }
+
+    /**
     *   Queue a repository scan (instant response)
     *  */
     async queueScan(repoId: string, userId: string, priority: number = 5): Promise<void> {
+        // ✅ Check if scan is already in progress
+        const canScan = await this.acquireScanLock(repoId);
+        if (!canScan) {
+            this.logger.warn(`⚠️  Scan already in progress for repo ${repoId}`);
+            throw new Error('Scan already in progress for this repository');
+        }
+
         const job: ScanJob = {
             repoId,
             userId,
@@ -58,6 +93,12 @@ export class TasksService {
         await this.setStatus(repoId, {
             status: 'queued',
             progress: { current: 0, total: 0 },
+        });
+
+        // ✅ Publish scan queued event
+        await this.publishScanEvent(repoId, 'scan:queued', {
+            status: 'queued',
+            message: 'Scan has been queued'
         });
 
         this.logger.log(`Queued scan for repo ${repoId} by user ${userId} with priority ${priority}`);
@@ -121,6 +162,12 @@ export class TasksService {
                 startedAt: Date.now(),
             });
 
+            // ✅ Publish scan started event
+            await this.publishScanEvent(repoId, 'scan:started', {
+                status: 'processing',
+                message: 'Scan started'
+            });
+
             // Check for cancellation
             if (await this.isCancelled(repoId)) {
                 throw new Error('Scan cancelled by user');
@@ -129,7 +176,10 @@ export class TasksService {
 
             // Step 1: Get Repository (10%)
             await this.updateProgress(repoId, 10);
-            // const repo = await this.repoEntity.findOne({ where: { id: repoId, user: { id: userId } }, relations: ['user'] });
+            await this.publishScanEvent(repoId, 'scan:progress', {
+                progress: 10,
+                message: 'Loading repository...'
+            });
 
             const repo = await this.repoEntity.createQueryBuilder('repository')
                 .leftJoinAndSelect('repository.user', 'user')
@@ -158,6 +208,11 @@ export class TasksService {
 
             // Step 2: Fetch File Tree (30%)
             await this.updateProgress(repoId, 30);
+            await this.publishScanEvent(repoId, 'scan:progress', {
+                progress: 30,
+                message: 'Fetching file tree...'
+            });
+
             const { data: tree } = await octokit.git.getTree({
                 owner,
                 repo: repoName,
@@ -174,18 +229,37 @@ export class TasksService {
 
             this.logger.log(`Processing ${relevantFiles.length} files for repo ${repoName}`);
 
+            await this.publishScanEvent(repoId, 'scan:progress', {
+                progress: 40,
+                message: `Found ${relevantFiles.length} files to scan`
+            });
+
             // Step 4: Fetch File Contents (60%)
             await this.updateProgress(repoId, 60);
+            await this.publishScanEvent(repoId, 'scan:progress', {
+                progress: 60,
+                message: 'Reading file contents...'
+            });
+
             const filesWithContent = await this.fetchFileContents(relevantFiles,
                 owner, repoName, octokit, repoId
             );
 
             // Step 5: Extract Tasks (80%)
             await this.updateProgress(repoId, 80);
+            await this.publishScanEvent(repoId, 'scan:progress', {
+                progress: 80,
+                message: 'Extracting tasks...'
+            });
+
             const extractedTasks = this.extractTasksFromFiles(filesWithContent);
 
             // Step 6: Save to database (90%)
             await this.updateProgress(repoId, 90);
+            await this.publishScanEvent(repoId, 'scan:progress', {
+                progress: 90,
+                message: 'Saving tasks...'
+            });
 
             // Clear old tasks
             await this.taskRepo.delete({ repository: { id: repoId } });
@@ -210,7 +284,17 @@ export class TasksService {
                 tasksFound: extractedTasks.length,
             });
 
-            this.logger.log(`Scan completed for rpo ${repoId}. Found ${extractedTasks.length} tasks.`);
+            // ✅ Publish scan completed event
+            await this.publishScanEvent(repoId, 'scan:completed', {
+                status: 'completed',
+                tasksFound: extractedTasks.length,
+                message: `Scan completed! Found ${extractedTasks.length} tasks.`
+            });
+
+            // ✅ Release scan lock
+            await this.releaseScanLock(repoId);
+
+            this.logger.log(`Scan completed for repo ${repoId}. Found ${extractedTasks.length} tasks.`);
 
         } catch (err) {
             this.logger.error(`Scan failed for repo ${repoId}: ${err.message}`, err.message);
@@ -221,6 +305,16 @@ export class TasksService {
                 error: err.message,
                 completedAt: Date.now(),
             });
+
+            // ✅ Publish scan failed event
+            await this.publishScanEvent(repoId, 'scan:failed', {
+                status: 'failed',
+                error: err.message,
+                message: `Scan failed: ${err.message}`
+            });
+
+            // ✅ Release scan lock on failure too
+            await this.releaseScanLock(repoId);
         }
     }
 

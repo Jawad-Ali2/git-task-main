@@ -8,6 +8,7 @@ import Redis from 'ioredis';
 import { createAppAuth } from '@octokit/auth-app';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import axios from 'axios';
 
 @Injectable()
 export class RepositoriesService {
@@ -266,6 +267,23 @@ export class RepositoriesService {
             const savedRepos = await this.repoEntity.save(newRepos);
             this.logger.log(`Saved ${newRepos.length} new repos for user ${userId}`);
             
+            // ✅ Create webhooks for each saved repository
+            const decryptedToken = user.decryptGithubToken();
+            if (decryptedToken) {
+                for (const repo of savedRepos) {
+                    try {
+                        // Extract owner/repo from URL (e.g., "https://github.com/owner/repo")
+                        const repoFullName = repo.url.replace('https://github.com/', '').replace(/\/$/, '');
+                        await this.createWebhookForRepo(repoFullName, decryptedToken);
+                    } catch (error) {
+                        this.logger.error(`Failed to create webhook for ${repo.name}: ${error.message}`);
+                        // Continue with other repos even if one fails
+                    }
+                }
+            } else {
+                this.logger.warn(`Could not create webhooks - failed to decrypt token for user ${userId}`);
+            }
+            
             // Invalidate cache
             await this.invalidateUserCache(userId);
             
@@ -311,6 +329,17 @@ export class RepositoriesService {
     }
 
     /**
+     * Find a repository by its GitHub ID across all users (for webhook processing)
+     * @param githubId - GitHub repository ID
+     */
+    async findByGithubIdAcrossUsers(githubId: string) {
+        return await this.repoEntity.findOne({
+            where: { githubId },
+            relations: ['user']
+        });
+    }
+
+    /**
      * Get count of monitored repositories for a user.
      */
     async countMonitoredRepos(userId: string): Promise<number> {
@@ -349,11 +378,32 @@ export class RepositoriesService {
      */
     async deleteRepository(userId: string, repoId: string): Promise<void> {
         const repo = await this.repoEntity.findOne({
-            where: { id: repoId, user: { id: userId } }
+            where: { id: repoId, user: { id: userId } },
+            relations: ['user']
         });
 
         if (!repo) {
             throw new Error('Repository not found or access denied');
+        }
+
+        // ✅ Delete webhook before removing from database
+        const user = await this.user
+            .createQueryBuilder('user')
+            .addSelect('user.githubAccessToken')
+            .where('user.id = :userId', { userId })
+            .getOne();
+
+        if (user) {
+            const decryptedToken = user.decryptGithubToken();
+            if (decryptedToken) {
+                try {
+                    const repoFullName = repo.url.replace('https://github.com/', '').replace(/\/$/, '');
+                    await this.deleteWebhookForRepo(repoFullName, decryptedToken);
+                } catch (error) {
+                    this.logger.error(`Failed to delete webhook for ${repo.name}: ${error.message}`);
+                    // Continue with repo deletion even if webhook deletion fails
+                }
+            }
         }
 
         await this.repoEntity.remove(repo);
@@ -361,5 +411,111 @@ export class RepositoriesService {
         
         // Invalidate cache
         await this.invalidateUserCache(userId);
+    }
+
+    /**
+     * Create a webhook for a repository using OAuth token
+     * @param repoFullName - Full repository name (owner/repo)
+     * @param accessToken - User's GitHub OAuth token (decrypted)
+     */
+    private async createWebhookForRepo(repoFullName: string, accessToken: string): Promise<void> {
+        const webhookUrl = `${process.env.API_URL || 'http://localhost:5000'}/webhooks/github`;
+        
+        // ⚠️ Warning if using localhost
+        if (webhookUrl.includes('localhost')) {
+            this.logger.warn(`⚠️  WARNING: Using localhost URL (${webhookUrl}). GitHub cannot reach localhost! Use ngrok or deploy to production.`);
+        }
+        
+        this.logger.log(`Creating webhook for ${repoFullName} → ${webhookUrl}`);
+        
+        try {
+            const response = await axios.post(
+                `https://api.github.com/repos/${repoFullName}/hooks`,
+                {
+                    name: 'web',
+                    active: true,
+                    events: ['push', 'pull_request', 'issues', 'issue_comment'],
+                    config: {
+                        url: webhookUrl,
+                        content_type: 'json',
+                        secret: process.env.GITHUB_WEBHOOK_SECRET,
+                        insecure_ssl: '0'
+                    }
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/vnd.github+json',
+                        'X-GitHub-Api-Version': '2022-11-28'
+                    }
+                }
+            );
+            
+            this.logger.log(`✅ Webhook created for ${repoFullName} (ID: ${response.data.id}) → ${webhookUrl}`);
+        } catch (error) {
+            if (axios.isAxiosError(error)) {
+                // Check if webhook already exists
+                if (error.response?.status === 422 && error.response?.data?.errors?.some((e: any) => e.message?.includes('Hook already exists'))) {
+                    this.logger.warn(`Webhook already exists for ${repoFullName}`);
+                    return;
+                }
+                this.logger.error(`❌ Failed to create webhook for ${repoFullName}: ${error.response?.data?.message || error.message}`);
+                this.logger.error(`Response: ${JSON.stringify(error.response?.data, null, 2)}`);
+            } else {
+                this.logger.error(`❌ Failed to create webhook for ${repoFullName}: ${error}`);
+            }
+            throw new Error(`Failed to create webhook for ${repoFullName}`);
+        }
+    }
+
+    /**
+     * Delete a webhook for a repository using OAuth token
+     * @param repoFullName - Full repository name (owner/repo)
+     * @param accessToken - User's GitHub OAuth token (decrypted)
+     */
+    private async deleteWebhookForRepo(repoFullName: string, accessToken: string): Promise<void> {
+        const webhookUrl = `${process.env.API_URL || 'http://localhost:5000'}/webhooks/github`;
+        
+        try {
+            // First, get all webhooks for the repo
+            const response = await axios.get(
+                `https://api.github.com/repos/${repoFullName}/hooks`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${accessToken}`,
+                        Accept: 'application/vnd.github+json',
+                        'X-GitHub-Api-Version': '2022-11-28'
+                    }
+                }
+            );
+
+            // Find the webhook with our URL
+            const webhook = response.data.find((hook: any) => hook.config?.url === webhookUrl);
+
+            if (webhook) {
+                // Delete the webhook
+                await axios.delete(
+                    `https://api.github.com/repos/${repoFullName}/hooks/${webhook.id}`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${accessToken}`,
+                            Accept: 'application/vnd.github+json',
+                            'X-GitHub-Api-Version': '2022-11-28'
+                        }
+                    }
+                );
+                
+                this.logger.log(`✅ Webhook deleted for ${repoFullName} (ID: ${webhook.id})`);
+            } else {
+                this.logger.warn(`No webhook found for ${repoFullName}`);
+            }
+        } catch (error) {
+            if (axios.isAxiosError(error)) {
+                this.logger.error(`Failed to delete webhook for ${repoFullName}: ${error.response?.data?.message || error.message}`);
+            } else {
+                this.logger.error(`Failed to delete webhook for ${repoFullName}: ${error}`);
+            }
+            // Don't throw - webhook deletion is not critical
+        }
     }
 }

@@ -132,31 +132,20 @@ export class WebhooksService {
     async handlePushEvent(payload: any) {
         const { repository, installation, pusher, commits } = payload;
 
-        if (!repository || !installation || !pusher || !commits) {
+        if (!repository || !pusher || !commits) {
             throw new BadRequestException('Invalid payload structure');
         }
 
         const repoFullName = repository.full_name;
-        const installationId = installation.id;
+        const githubRepoId = repository.id.toString();
 
         this.logger.log(`Push event on repository: ${repoFullName} by ${pusher.name} (${commits.length} commits)`);
 
-        const user = await this.userRepository.findOne({ where: { githubInstallationId: installationId } });
-
-        if (!user) {
-            this.logger.warn(`No user found for installation ID: ${installationId}`);
-            return { message: 'User not found.' };
-        }
-
-        // Find saved repo in DB
-        // const dbRepo = await this.repositoriesService.getSavedRepos(user.id);
-        const monitoredRepo = await this.repositoriesService.findByGithubId(
-            repository.id.toString(),
-            user.id
-        );
+        // ✅ Find user by repository ownership (works for both OAuth and GitHub App webhooks)
+        const monitoredRepo = await this.repositoriesService.findByGithubIdAcrossUsers(githubRepoId);
 
         if (!monitoredRepo) {
-            this.logger.log(`Repository ${repoFullName} not saved by user, ignoring push event.`);
+            this.logger.log(`Repository ${repoFullName} not monitored by any user, ignoring push event.`);
             return {
                 message: 'Repository not monitored',
                 hint: 'User must add this repository from the dashboard to enable scanning'
@@ -166,11 +155,11 @@ export class WebhooksService {
         // Queue scan with latest commit info
         await this.tasksService.queueScan(
             monitoredRepo.id,
-            user.id,
+            monitoredRepo.user.id,
             5 // Priority level
         );
 
-        this.logger.log(`Scan queued for ${repoFullName}`);
+        this.logger.log(`Scan queued for ${repoFullName} (user: ${monitoredRepo.user.id})`);
 
         return {
             message: 'Scan queued successfully.',

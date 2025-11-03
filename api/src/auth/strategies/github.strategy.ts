@@ -9,10 +9,10 @@ import { AuthService } from "../auth.service";
 export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
     constructor(private readonly authService: AuthService) {
         super({
-            // clientID: process.env.GITHUB_CLIENT_ID!,
-            clientID: process.env.GITHUB_APP_CLIENT_ID!,
-            // clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-            clientSecret: process.env.GITHUB_APP_CLIENT_SECRET!,
+            clientID: process.env.GITHUB_CLIENT_ID!,
+            // clientID: process.env.GITHUB_APP_CLIENT_ID!,
+            clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+            // clientSecret: process.env.GITHUB_APP_CLIENT_SECRET!,
             callbackURL: process.env.GITHUB_CALLBACK_URL!,
             scope: [
                 'read:user',      // Read user profile

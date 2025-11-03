@@ -34,48 +34,12 @@ export class AuthService {
             user.githubAccessToken = accessToken; // Update & re-encrypt
         }
 
-        // Fetch Github App Installation ID
-        const installationId = await this.fetchInstallationId(accessToken);
-        if (installationId) {
-            user.githubInstallationId = installationId;
-            console.log(`Found Installation ID: ${installationId} for user ${user.name}`);
-        } else {
-            console.log(`No Installation ID found for user ${user.name}`);
-        }
-
         await this.userRepo.save(user);
 
         const tokens = await this.generateTokens(user);
         await this.updateRefreshToken(user.id, tokens.refreshToken);
 
         return { user, ...tokens }
-    }
-
-    /**
-     * Fetch the GitHub App Installation ID for the user
-     * @param accessToken 
-     */
-    private async fetchInstallationId(accessToken: string): Promise<number | null> {
-        try {
-            const response = await axios.get('https://api.github.com/user/installations', {
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                    Accept: 'application/vnd.github+json',
-                },
-            });
-
-            const appId = parseInt(process.env.GITHUB_APP_ID!);
-            const installations = response.data?.installations || [];
-
-            const installation = installations.find(
-                (inst: any) => inst.app_id === appId,
-            );
-
-            return installation ? installation.id : null;
-        } catch (error) {
-            console.error('Error fetching installation ID:', error);
-            return null;
-        }
     }
 
     async generateTokens(user: User) {

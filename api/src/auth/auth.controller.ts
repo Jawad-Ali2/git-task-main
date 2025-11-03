@@ -18,22 +18,14 @@ export class AuthController {
     @Get('github/callback')
     @UseGuards(AuthGuard('github'))
     async githubCallback(@Req() req: Request, @Res() res: Response) {
-
         try {
-
             const result = req.user as any;
 
             // Set secure HTTP-only cookies
             this.setAuthCookies(res, result.accessToken, result.refreshToken);
 
-            // Redirect to frontend with success
+            // ✅ Direct to dashboard - no GitHub App installation needed!
             const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-
-            if (!result.user.githubInstallationId) {
-                const appName = process.env.GITHUB_APP_NAME || 'git-task-dev';
-
-                return res.redirect(`${frontendUrl}/install-app?redirect=https://github.com/apps/${appName}/installations/new&return=${frontendUrl}/dashboard`);
-            }
             res.redirect(`${frontendUrl}/dashboard?auth=success`);
         } catch (error) {
             res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?auth=failed`);
