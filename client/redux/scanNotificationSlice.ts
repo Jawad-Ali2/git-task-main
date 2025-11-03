@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction, createSelector } from '@reduxjs/toolkit';
 import axiosInstance from '@/lib/axios';
 
 export interface PendingScanRepo {
@@ -161,13 +161,24 @@ export const {
   clearError,
 } = scanNotificationSlice.actions;
 
-export const selectActiveNotifications = (state: { scanNotification: ScanNotificationState }) =>
-  state.scanNotification.notifications.filter(n => !n.dismissed);
+// Memoized selectors to prevent unnecessary re-renders
+const selectScanNotificationState = (state: { scanNotification: ScanNotificationState }) => 
+  state.scanNotification;
 
-export const selectIsScanningRepo = (repoId: string) => (state: { scanNotification: ScanNotificationState }) =>
-  state.scanNotification.scanning[repoId] || false;
+export const selectActiveNotifications = createSelector(
+  [selectScanNotificationState],
+  (scanNotification) => scanNotification.notifications.filter(n => !n.dismissed)
+);
 
-export const selectAnyScanInProgress = (state: { scanNotification: ScanNotificationState }) =>
-  Object.keys(state.scanNotification.scanning).length > 0;
+export const selectIsScanningRepo = (repoId: string) => 
+  createSelector(
+    [selectScanNotificationState],
+    (scanNotification) => scanNotification.scanning[repoId] || false
+  );
+
+export const selectAnyScanInProgress = createSelector(
+  [selectScanNotificationState],
+  (scanNotification) => Object.keys(scanNotification.scanning).length > 0
+);
 
 export default scanNotificationSlice.reducer;

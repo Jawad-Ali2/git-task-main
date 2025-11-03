@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Inject, Injectable, Logger, UnauthorizedException, BadRequestException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
 import { Repository } from 'typeorm';
@@ -9,6 +9,8 @@ import { createAppAuth } from '@octokit/auth-app';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
+import { TasksService } from 'src/tasks/tasks.service';
+import { NotificationsService, NotificationType } from 'src/notifications/notifications.service';
 
 @Injectable()
 export class RepositoriesService {
@@ -22,7 +24,12 @@ export class RepositoriesService {
         @InjectRepository(RepoEntity)
         private readonly repoEntity: Repository<RepoEntity>,
 
-        @Inject('REDIS_CLIENT') private readonly redis: Redis
+        @Inject('REDIS_CLIENT') private readonly redis: Redis,
+        
+        @Inject(forwardRef(() => TasksService))
+        private readonly tasksService: TasksService,
+        
+        private readonly notificationsService: NotificationsService,
     ) { }
 
     /**
@@ -275,13 +282,55 @@ export class RepositoriesService {
                         // Extract owner/repo from URL (e.g., "https://github.com/owner/repo")
                         const repoFullName = repo.url.replace('https://github.com/', '').replace(/\/$/, '');
                         await this.createWebhookForRepo(repoFullName, decryptedToken);
+                        
+                        // ✅ Send success notification for webhook
+                        await this.notificationsService.emit(userId, {
+                            type: NotificationType.WEBHOOK_CREATED,
+                            title: 'Webhook Created',
+                            message: `Webhook created successfully for ${repo.name}`,
+                            timestamp: new Date(),
+                        });
                     } catch (error) {
                         this.logger.error(`Failed to create webhook for ${repo.name}: ${error.message}`);
+                        
+                        // ✅ Send error notification
+                        await this.notificationsService.emit(userId, {
+                            type: NotificationType.WEBHOOK_FAILED,
+                            title: 'Webhook Failed',
+                            message: `Failed to create webhook for ${repo.name}`,
+                            timestamp: new Date(),
+                        });
                         // Continue with other repos even if one fails
                     }
                 }
             } else {
                 this.logger.warn(`Could not create webhooks - failed to decrypt token for user ${userId}`);
+            }
+            
+            // ✅ Trigger automatic scan for each saved repository
+            for (const repo of savedRepos) {
+                try {
+                    this.logger.log(`Queuing automatic scan for ${repo.name} (${repo.id})`);
+                    await this.tasksService.queueScan(repo.id, userId, 10); // High priority for initial scans
+                    
+                    // ✅ Send info notification
+                    await this.notificationsService.emit(userId, {
+                        type: NotificationType.REPO_ADDED,
+                        title: 'Repository Added',
+                        message: `${repo.name} has been added and scan initiated`,
+                        timestamp: new Date(),
+                    });
+                } catch (error) {
+                    this.logger.error(`Failed to queue scan for ${repo.name}: ${error.message}`);
+                    
+                    // ✅ Send error notification
+                    await this.notificationsService.emit(userId, {
+                        type: NotificationType.SCAN_FAILED,
+                        title: 'Scan Failed to Start',
+                        message: `Could not initiate scan for ${repo.name}`,
+                        timestamp: new Date(),
+                    });
+                }
             }
             
             // Invalidate cache
@@ -386,6 +435,8 @@ export class RepositoriesService {
             throw new Error('Repository not found or access denied');
         }
 
+        const repoName = repo.name;
+
         // ✅ Delete webhook before removing from database
         const user = await this.user
             .createQueryBuilder('user')
@@ -399,6 +450,14 @@ export class RepositoriesService {
                 try {
                     const repoFullName = repo.url.replace('https://github.com/', '').replace(/\/$/, '');
                     await this.deleteWebhookForRepo(repoFullName, decryptedToken);
+                    
+                    // ✅ Send success notification
+                    await this.notificationsService.emit(userId, {
+                        type: NotificationType.WEBHOOK_DELETED,
+                        title: 'Webhook Deleted',
+                        message: `Webhook removed for ${repoName}`,
+                        timestamp: new Date(),
+                    });
                 } catch (error) {
                     this.logger.error(`Failed to delete webhook for ${repo.name}: ${error.message}`);
                     // Continue with repo deletion even if webhook deletion fails
@@ -408,6 +467,14 @@ export class RepositoriesService {
 
         await this.repoEntity.remove(repo);
         this.logger.log(`Deleted repository ${repoId} for user ${userId}`);
+        
+        // ✅ Send repository deletion notification
+        await this.notificationsService.emit(userId, {
+            type: NotificationType.REPO_REMOVED,
+            title: 'Repository Removed',
+            message: `${repoName} has been removed from monitoring`,
+            timestamp: new Date(),
+        });
         
         // Invalidate cache
         await this.invalidateUserCache(userId);

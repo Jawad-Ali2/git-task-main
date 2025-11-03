@@ -10,6 +10,7 @@ import { NavProjects } from "./nav-projects";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchRepositories, selectRepositories, selectRepositoriesLoading } from "@/redux/repositoriesSlice";
 import { useEffect } from "react";
+import { NotificationCenter } from "@/components/NotificationCenter";
 
 const mainMenuItems = [
   {
@@ -73,6 +74,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <span className="truncate text-xs text-muted-foreground">
               Track your TODOs
             </span>
+          </div>
+          <div className="group-data-[collapsible=icon]:hidden">
+            <NotificationCenter />
           </div>
         </div>
       </SidebarHeader>

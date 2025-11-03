@@ -1,10 +1,12 @@
 import { BadRequestException, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiCookieAuth } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { WebhooksService } from '@/webhooks/webhooks.service';
 import { User } from '@/users/entities/user.entity';
 
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
     constructor(private readonly authService: AuthService,
@@ -13,10 +15,14 @@ export class AuthController {
 
     @Get('github')
     @UseGuards(AuthGuard('github'))
+    @ApiOperation({ summary: 'Initiate GitHub OAuth login' })
+    @ApiResponse({ status: 302, description: 'Redirects to GitHub OAuth' })
     async githubAuth() { }
 
     @Get('github/callback')
     @UseGuards(AuthGuard('github'))
+    @ApiOperation({ summary: 'GitHub OAuth callback' })
+    @ApiResponse({ status: 302, description: 'Redirects to dashboard with auth cookies' })
     async githubCallback(@Req() req: Request, @Res() res: Response) {
         try {
             const result = req.user as any;
@@ -34,6 +40,11 @@ export class AuthController {
 
     @Get('github-app/callback')
     @UseGuards(AuthGuard('jwt'))
+    @ApiBearerAuth('JWT-auth')
+    @ApiOperation({ summary: 'GitHub App installation callback' })
+    @ApiQuery({ name: 'installation_id', required: true })
+    @ApiQuery({ name: 'setup_action', required: false })
+    @ApiResponse({ status: 200, description: 'Installation linked successfully' })
     async githubAppCallback(
         @Query('installation_id') installationId: string,
         @Query('setup_action') setupAction: string,
@@ -54,12 +65,20 @@ export class AuthController {
 
     @Get('profile')
     @UseGuards(AuthGuard('jwt'))
+    @ApiCookieAuth('access_token')
+    @ApiOperation({ summary: 'Get current user profile' })
+    @ApiResponse({ status: 200, description: 'Returns authenticated user profile' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
     getProfile(@Req() req: Request) {
         const user = (req as any).user as User;
         return { message: 'Authenticated', user }
     }
 
     @Post('refresh')
+    @ApiCookieAuth('access_token')
+    @ApiOperation({ summary: 'Refresh access token using refresh token' })
+    @ApiResponse({ status: 200, description: 'Tokens refreshed successfully' })
+    @ApiResponse({ status: 401, description: 'Invalid refresh token' })
     async refresh(@Req() req: Request, @Res() res: Response) {
         const refreshToken = req.cookies['refreshToken'];
 
@@ -83,6 +102,9 @@ export class AuthController {
 
     @Post('logout')
     @UseGuards(AuthGuard('jwt'))
+    @ApiCookieAuth('access_token')
+    @ApiOperation({ summary: 'Logout current user' })
+    @ApiResponse({ status: 200, description: 'Logged out successfully' })
     async logout(@Req() req: Request, @Res() res: Response) {
         const user = (req as any).user;
 

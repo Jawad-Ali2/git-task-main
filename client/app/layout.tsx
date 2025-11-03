@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import { Toaster } from 'sonner';
+import { NotificationProvider } from "@/components/NotificationProvider";
+import { NotificationContextProvider } from "@/contexts/NotificationContext";
 
 const poppins = Poppins({
   // variable: "--font-poppins",
@@ -29,8 +32,13 @@ export default function RootLayout({
         className={`${inter.className} antialiased`}
       >
         <Providers>
-          {children}
+          <NotificationContextProvider>
+            <NotificationProvider>
+              {children}
+            </NotificationProvider>
+          </NotificationContextProvider>
         </Providers>
+        <Toaster position="top-right" richColors closeButton />
       </body>
     </html>
   );

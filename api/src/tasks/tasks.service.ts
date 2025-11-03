@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { Task } from './entities/tasks.entity';
 import Redis from 'ioredis';
 import { Octokit } from '@octokit/rest';
+import { NotificationsService, NotificationType } from '@/notifications/notifications.service';
 
 interface ScanJob {
     repoId: string;
@@ -39,35 +40,44 @@ export class TasksService {
 
         @Inject('REDIS_CLIENT')
         private readonly redis: Redis,
+
+        private readonly notificationsService: NotificationsService,
     ) {
         this.startWorker();
-    }
-
-    /**
-     * Publish scan event to Redis (for SSE)
-     */
-    private async publishScanEvent(repoId: string, event: string, data: any) {
-        const channel = `scan:${repoId}`;
-        await this.redis.publish(channel, JSON.stringify({ event, data, timestamp: Date.now() }));
-        this.logger.log(`📡 Published ${event} to ${channel}`);
     }
 
     /**
      * Acquire scan lock (prevents duplicate scans)
      */
     private async acquireScanLock(repoId: string): Promise<boolean> {
-        const lockKey = `${this.SCAN_LOCK_PREFIX}${repoId}`;
-        // SET NX EX 3600 = Set if Not eXists, EXpire in 1 hour
-        const acquired = await this.redis.set(lockKey, '1', 'EX', 3600, 'NX');
-        return acquired === 'OK';
+        return await this.notificationsService.acquireLock(`scan:${repoId}`, 3600);
     }
 
     /**
      * Release scan lock
      */
     private async releaseScanLock(repoId: string): Promise<void> {
-        const lockKey = `${this.SCAN_LOCK_PREFIX}${repoId}`;
-        await this.redis.del(lockKey);
+        await this.notificationsService.releaseLock(`scan:${repoId}`);
+    }
+
+    /**
+     * Send scan notification to user
+     */
+    private async sendScanNotification(
+        userId: string,
+        type: NotificationType,
+        title: string,
+        message: string,
+        repoId: string,
+        data?: any
+    ): Promise<void> {
+        await this.notificationsService.emit(userId, {
+            type,
+            title,
+            message,
+            data: { repoId, ...data },
+            timestamp: new Date(),
+        });
     }
 
     /**
@@ -95,10 +105,13 @@ export class TasksService {
             progress: { current: 0, total: 0 },
         });
 
-        // ✅ Publish scan queued event
-        await this.publishScanEvent(repoId, 'scan:queued', {
-            status: 'queued',
-            message: 'Scan has been queued'
+        // ✅ Send real-time notification
+        await this.notificationsService.emit(userId, {
+            type: NotificationType.SCAN_STARTED,
+            title: 'Scan Queued',
+            message: 'Repository scan has been queued and will start shortly',
+            data: { repoId, status: 'queued' },
+            timestamp: new Date(),
         });
 
         this.logger.log(`Queued scan for repo ${repoId} by user ${userId} with priority ${priority}`);
@@ -162,11 +175,15 @@ export class TasksService {
                 startedAt: Date.now(),
             });
 
-            // ✅ Publish scan started event
-            await this.publishScanEvent(repoId, 'scan:started', {
-                status: 'processing',
-                message: 'Scan started'
-            });
+            // ✅ Send notification: scan started
+            await this.sendScanNotification(
+                userId,
+                NotificationType.SCAN_STARTED,
+                'Scan Started',
+                'Repository scan has begun',
+                repoId,
+                { status: 'processing' }
+            );
 
             // Check for cancellation
             if (await this.isCancelled(repoId)) {
@@ -176,10 +193,7 @@ export class TasksService {
 
             // Step 1: Get Repository (10%)
             await this.updateProgress(repoId, 10);
-            await this.publishScanEvent(repoId, 'scan:progress', {
-                progress: 10,
-                message: 'Loading repository...'
-            });
+            // Progress notification
 
             const repo = await this.repoEntity.createQueryBuilder('repository')
                 .leftJoinAndSelect('repository.user', 'user')
@@ -208,10 +222,7 @@ export class TasksService {
 
             // Step 2: Fetch File Tree (30%)
             await this.updateProgress(repoId, 30);
-            await this.publishScanEvent(repoId, 'scan:progress', {
-                progress: 30,
-                message: 'Fetching file tree...'
-            });
+            // Progress notification
 
             const { data: tree } = await octokit.git.getTree({
                 owner,
@@ -229,17 +240,18 @@ export class TasksService {
 
             this.logger.log(`Processing ${relevantFiles.length} files for repo ${repoName}`);
 
-            await this.publishScanEvent(repoId, 'scan:progress', {
-                progress: 40,
-                message: `Found ${relevantFiles.length} files to scan`
-            });
+            await this.sendScanNotification(
+                userId,
+                NotificationType.SCAN_PROGRESS,
+                'Scanning Files',
+                `Found ${relevantFiles.length} files to scan`,
+                repoId,
+                { progress: 40 }
+            );
 
             // Step 4: Fetch File Contents (60%)
             await this.updateProgress(repoId, 60);
-            await this.publishScanEvent(repoId, 'scan:progress', {
-                progress: 60,
-                message: 'Reading file contents...'
-            });
+            // Progress notification
 
             const filesWithContent = await this.fetchFileContents(relevantFiles,
                 owner, repoName, octokit, repoId
@@ -247,19 +259,13 @@ export class TasksService {
 
             // Step 5: Extract Tasks (80%)
             await this.updateProgress(repoId, 80);
-            await this.publishScanEvent(repoId, 'scan:progress', {
-                progress: 80,
-                message: 'Extracting tasks...'
-            });
+            // Progress notification
 
             const extractedTasks = this.extractTasksFromFiles(filesWithContent);
 
             // Step 6: Save to database (90%)
             await this.updateProgress(repoId, 90);
-            await this.publishScanEvent(repoId, 'scan:progress', {
-                progress: 90,
-                message: 'Saving tasks...'
-            });
+            // Progress notification
 
             // Clear old tasks
             await this.taskRepo.delete({ repository: { id: repoId } });
@@ -284,12 +290,15 @@ export class TasksService {
                 tasksFound: extractedTasks.length,
             });
 
-            // ✅ Publish scan completed event
-            await this.publishScanEvent(repoId, 'scan:completed', {
-                status: 'completed',
-                tasksFound: extractedTasks.length,
-                message: `Scan completed! Found ${extractedTasks.length} tasks.`
-            });
+            // ✅ Send completion notification
+            await this.sendScanNotification(
+                userId,
+                NotificationType.SCAN_COMPLETED,
+                'Scan Completed',
+                `Found ${extractedTasks.length} tasks`,
+                repoId,
+                { tasksFound: extractedTasks.length }
+            );
 
             // ✅ Release scan lock
             await this.releaseScanLock(repoId);
@@ -306,12 +315,15 @@ export class TasksService {
                 completedAt: Date.now(),
             });
 
-            // ✅ Publish scan failed event
-            await this.publishScanEvent(repoId, 'scan:failed', {
-                status: 'failed',
-                error: err.message,
-                message: `Scan failed: ${err.message}`
-            });
+            // ✅ Send failure notification
+            await this.sendScanNotification(
+                userId,
+                NotificationType.SCAN_FAILED,
+                'Scan Failed',
+                err.message,
+                repoId,
+                { error: err.message }
+            );
 
             // ✅ Release scan lock on failure too
             await this.releaseScanLock(repoId);
@@ -449,3 +461,7 @@ export class TasksService {
     }
 
 }
+
+
+
+
