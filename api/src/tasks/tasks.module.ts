@@ -5,11 +5,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Repository } from '@/repositories/entities/repository.entity';
 import { Task } from './entities/tasks.entity';
 import { NotificationsModule } from '@/notifications/notifications.module';
+import { AiModule } from '@/ai/ai.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([Repository, Task]),
-        NotificationsModule
+        NotificationsModule,
+        AiModule,
     ],
     providers: [TasksService],
     controllers: [TasksController],

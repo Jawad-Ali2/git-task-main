@@ -6,6 +6,7 @@ import { Task } from './entities/tasks.entity';
 import Redis from 'ioredis';
 import { Octokit } from '@octokit/rest';
 import { NotificationsService, NotificationType } from '@/notifications/notifications.service';
+import { AiService } from '@/ai/ai.service';
 
 interface ScanJob {
     repoId: string;
@@ -42,6 +43,8 @@ export class TasksService {
         private readonly redis: Redis,
 
         private readonly notificationsService: NotificationsService,
+        
+        private readonly aiService: AiService,
     ) {
         this.startWorker();
     }
@@ -261,7 +264,7 @@ export class TasksService {
             await this.updateProgress(repoId, 80);
             // Progress notification
 
-            const extractedTasks = this.extractTasksFromFiles(filesWithContent);
+            const extractedTasks = await this.extractTasksFromFiles(filesWithContent);
 
             // Step 6: Save to database (90%)
             await this.updateProgress(repoId, 90);
@@ -394,14 +397,16 @@ export class TasksService {
     /**
      * Extract tasks using regex (simple parser for now)
      */
-    private extractTasksFromFiles(files: any[]) {
+    private async extractTasksFromFiles(files: any[]) {
         const tasks: Array<{ 
             description: string; 
             type: string;
             priority: string;
             filePath: any; 
             lineNumber: number; 
-            status: string 
+            status: string;
+            ai_summary?: string;
+            debt_score?: number;
         }> = [];
         
         const taskPatterns = [
@@ -421,6 +426,11 @@ export class TasksService {
                 for (const { pattern, type, priority } of taskPatterns) {
                     const matches = line.matchAll(pattern);
                     for (const match of matches) {
+                        // Get surrounding code context (5 lines before and after)
+                        const startLine = Math.max(0, index - 5);
+                        const endLine = Math.min(lines.length, index + 6);
+                        const surroundingCode = lines.slice(startLine, endLine).join('\n');
+
                         tasks.push({
                             description: match[1].trim(),
                             type,
@@ -428,10 +438,48 @@ export class TasksService {
                             filePath: file.path,
                             lineNumber: index + 1,
                             status: 'open',
-                        })
+                            surroundingCode, // Store temporarily for AI analysis
+                        } as any);
                     }
                 }
             })
+        }
+
+        // Perform AI analysis on all tasks
+        if (tasks.length > 0 && this.aiService.isAvailable()) {
+            this.logger.log(`🤖 Analyzing ${tasks.length} tasks with AI...`);
+            
+            try {
+                const analyses = await this.aiService.analyzeTasks(
+                    tasks.map(task => ({
+                        description: task.description,
+                        type: task.type,
+                        filePath: task.filePath,
+                        lineNumber: task.lineNumber,
+                        surroundingCode: (task as any).surroundingCode,
+                    }))
+                );
+
+                // Merge AI analysis results with tasks
+                tasks.forEach((task, index) => {
+                    task.ai_summary = analyses[index].summary;
+                    task.debt_score = analyses[index].debtScore;
+                    delete (task as any).surroundingCode; // Remove temporary field
+                });
+
+                this.logger.log(`✅ AI analysis completed for ${tasks.length} tasks`);
+            } catch (error) {
+                this.logger.error(`Failed to analyze tasks with AI: ${error.message}`);
+                // Continue without AI analysis
+                tasks.forEach(task => {
+                    delete (task as any).surroundingCode;
+                });
+            }
+        } else {
+            // Remove temporary surroundingCode field if AI is not available
+            tasks.forEach(task => {
+                delete (task as any).surroundingCode;
+            });
         }
 
         return tasks;

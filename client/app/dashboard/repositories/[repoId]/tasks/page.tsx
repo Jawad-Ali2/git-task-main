@@ -21,6 +21,8 @@ interface Task {
     lineNumber: number;
     priority: string;
     status: string;
+    ai_summary?: string;
+    debt_score?: number;
     repository: {
         id: string;
         name: string;
@@ -159,6 +161,22 @@ export default function RepositoryTasksPage() {
             default:
                 return <AlertCircle className="h-4 w-4" />;
         }
+    };
+
+    const getDebtScoreColor = (score: number) => {
+        if (score >= 81) return 'text-red-600 bg-red-500/10 border-red-500/20';
+        if (score >= 61) return 'text-orange-600 bg-orange-500/10 border-orange-500/20';
+        if (score >= 41) return 'text-yellow-600 bg-yellow-500/10 border-yellow-500/20';
+        if (score >= 21) return 'text-blue-600 bg-blue-500/10 border-blue-500/20';
+        return 'text-green-600 bg-green-500/10 border-green-500/20';
+    };
+
+    const getDebtScoreLabel = (score: number) => {
+        if (score >= 81) return 'Critical';
+        if (score >= 61) return 'High';
+        if (score >= 41) return 'Medium';
+        if (score >= 21) return 'Low';
+        return 'Minor';
     };
 
     const stats = {
@@ -339,10 +357,10 @@ export default function RepositoryTasksPage() {
                 <div className="space-y-4">
                     {filteredTasks.map((task) => (
                         <Card key={task.id} className="hover:shadow-md transition-shadow">
-                            <CardContent>
+                            <CardContent className="pt-6">
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
-                                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                                        <div className="flex items-center gap-2 mb-3 flex-wrap">
                                             <Badge className={getTypeColor(task.type)}>{task.type}</Badge>
 
                                             <Select
@@ -379,9 +397,25 @@ export default function RepositoryTasksPage() {
                                                     <SelectItem value="completed">Completed</SelectItem>
                                                 </SelectContent>
                                             </Select>
+
+                                            {task.debt_score !== null && task.debt_score !== undefined && (
+                                                <Badge variant="outline" className={getDebtScoreColor(task.debt_score)}>
+                                                    <AlertCircle className="h-3 w-3 mr-1" />
+                                                    Debt: {task.debt_score}/100 ({getDebtScoreLabel(task.debt_score)})
+                                                </Badge>
+                                            )}
                                         </div>
 
                                         <p className="text-lg font-medium mb-2">{task.description}</p>
+
+                                        {task.ai_summary && (
+                                            <div className="mb-3 p-3 bg-muted/50 rounded-md border border-muted">
+                                                <p className="text-sm text-muted-foreground">
+                                                    <span className="font-semibold text-foreground">AI Summary: </span>
+                                                    {task.ai_summary}
+                                                </p>
+                                            </div>
+                                        )}
 
                                         <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                                             <div className="flex items-center gap-1">

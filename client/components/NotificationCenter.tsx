@@ -139,26 +139,3 @@ function NotificationItem({
     </div>
   );
 }
-
-function NotificationItem({
-  notification,
-  getIcon,
-}: {
-  notification: Notification;
-  getIcon: (type: string) => React.ReactNode;
-}) {
-  return (
-    <div className="p-4 hover:bg-muted/50 transition-colors">
-      <div className="flex gap-3">
-        <div className="flex-shrink-0 mt-1">{getIcon(notification.type)}</div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">{notification.title}</p>
-          <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
-          <p className="text-xs text-muted-foreground mt-2">
-            {formatDistanceToNow(new Date(notification.timestamp), { addSuffix: true })}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
