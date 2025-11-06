@@ -120,7 +120,7 @@ function NotificationItem({
   return (
     <div className="p-4 hover:bg-muted/50 transition-colors group">
       <div className="flex gap-3">
-        <div className="flex-shrink-0 mt-1">{getIcon(notification.type)}</div>
+        <div className="shrink-0 mt-1">{getIcon(notification.type)}</div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">{notification.title}</p>
           <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
@@ -130,7 +130,7 @@ function NotificationItem({
         </div>
         <button
           onClick={onDismiss}
-          className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
           aria-label="Dismiss notification"
         >
           <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />

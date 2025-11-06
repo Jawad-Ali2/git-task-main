@@ -4,10 +4,15 @@ import { useEffect } from 'react';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import { fetchDashboardStats, selectDashboardStats, selectDashboardLoading } from '@/redux/dashboardSlice';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Loader2, CheckCircle2, Clock, AlertCircle, ListTodo, FolderGit2, TrendingUp } from 'lucide-react';
+import { CheckCircle2, Clock, AlertCircle, ListTodo, FolderGit2, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { TasksByRepositoryChart } from '@/components/tasks-by-repository-chart';
+import { RecentActivityCard } from '@/components/recent-activity-card';
+import { StatsCard } from '@/components/stats-card';
+import { PageHeader } from '@/components/page-header';
+import { EmptyState } from '@/components/empty-state';
 
 export default function DashboardPage() {
   const dispatch = useAppDispatch();
@@ -19,24 +24,21 @@ export default function DashboardPage() {
   }, [dispatch]);
 
   if (loading && !stats) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <EmptyState loading={true} loadingText="Loading dashboard..." title="" />;
   }
 
   if (!stats) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
-        <p className="text-muted-foreground">No data available</p>
-        <Link href="/dashboard/repositories/add">
-          <Button>
-            <FolderGit2 className="h-4 w-4 mr-2" />
-            Add Repositories
-          </Button>
-        </Link>
-      </div>
+      <EmptyState
+        icon={FolderGit2}
+        title="No data available"
+        description="Add repositories to start tracking tasks"
+        action={{
+          label: 'Add Repositories',
+          onClick: () => {},
+          icon: FolderGit2,
+        }}
+      />
     );
   }
 
@@ -47,74 +49,47 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">
-            Overview of your tasks and repositories
-          </p>
-        </div>
-        <Link href="/tasks">
+      <PageHeader
+        title="Dashboard"
+        description="Overview of your tasks and repositories"
+      >
+        <Link href="/dashboard/tasks">
           <Button>
             <ListTodo className="h-4 w-4 mr-2" />
             View All Tasks
           </Button>
         </Link>
-      </div>
+      </PageHeader>
 
       {/* Stats Cards - Status */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
-            <ListTodo className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
-            <p className="text-xs text-muted-foreground">
-              Across all repositories
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.byStatus.pending}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.total > 0 ? ((stats.byStatus.pending / stats.total) * 100).toFixed(0) : 0}% of total
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
-            <TrendingUp className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.byStatus['in-progress']}</div>
-            <p className="text-xs text-muted-foreground">
-              {stats.total > 0 ? ((stats.byStatus['in-progress'] / stats.total) * 100).toFixed(0) : 0}% of total
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Completed</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.byStatus.completed}</div>
-            <p className="text-xs text-muted-foreground">
-              {completionRate}% completion rate
-            </p>
-          </CardContent>
-        </Card>
+        <StatsCard
+          title="Total Tasks"
+          value={stats.total}
+          description="Across all repositories"
+          icon={ListTodo}
+        />
+        <StatsCard
+          title="Pending"
+          value={stats.byStatus.pending}
+          description={`${stats.total > 0 ? ((stats.byStatus.pending / stats.total) * 100).toFixed(0) : 0}% of total`}
+          icon={Clock}
+          iconColor="text-yellow-500"
+        />
+        <StatsCard
+          title="In Progress"
+          value={stats.byStatus['in-progress']}
+          description={`${stats.total > 0 ? ((stats.byStatus['in-progress'] / stats.total) * 100).toFixed(0) : 0}% of total`}
+          icon={TrendingUp}
+          iconColor="text-blue-500"
+        />
+        <StatsCard
+          title="Completed"
+          value={stats.byStatus.completed}
+          description={`${completionRate}% completion rate`}
+          icon={CheckCircle2}
+          iconColor="text-green-500"
+        />
       </div>
 
       {/* Priority & Type Breakdown */}
@@ -176,6 +151,12 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Tasks by Repository Chart */}
+      <TasksByRepositoryChart />
+
+      {/* Recent Activity */}
+      <RecentActivityCard />
 
       {/* Quick Actions */}
       <Card>

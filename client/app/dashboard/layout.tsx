@@ -104,7 +104,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </Breadcrumb>
           </div>
         </header>
-        <div className="bg-bg flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className="bg-bg flex flex-1 flex-col gap-4 p-4 pt-0 pb-10">
           {children}
         </div>
       </SidebarInset>

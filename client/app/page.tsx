@@ -2,23 +2,14 @@ import Link from 'next/link';
 import { ArrowRight, Github, Sparkles, TrendingUp, Zap, Users, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Image from 'next/image';
 import Squares from '@/components/squares-bg';
+import LandingHeader from '@/components/landing-header';
+import LandingFooter from '@/components/landing-footer';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-bg">
-      <header className="fixed top-0 w-full glass z-50 bg-background border-b border-border">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Image src="/logo.png" alt="GitTask Logo" width={20} height={20} />
-            <span className="font-bold text-xl">GitTask</span>
-          </div>
-          <Link href="/login">
-            <Button variant="default" size="sm">Sign In</Button>
-          </Link>
-        </div>
-      </header>
+      <LandingHeader />
 
       <section className="pt-32 pb-20 px-6 relative overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -47,8 +38,8 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/login">
               <Button
-                size="lg"
-                className="text-lg px-8 h-14 glow-primary"
+                size="default"
+                className="text-lg px-8 h-12 glow-primary"
               >
                 <Github className="mr-2 h-5 w-5" />
                 Get Started with GitHub
@@ -121,7 +112,7 @@ export default function Home() {
           <Link href="/login">
             <Button
               size="lg"
-              className="text-lg px-8 h-14 glow-primary"
+              className="text-lg px-8 h-12 glow-primary"
             >
               <Github className="mr-2 h-5 w-5" />
               Start with Github
@@ -130,20 +121,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* <footer className="py-12 px-4 border-t border-border"> */}
-      <footer className="py-12 px-4">
-        <div className="container mx-auto max-w-6xl">
-          <div className="flex flex-col md:flex-row justify-between items-center">
-            <div className="flex items-center space-x-2 mb-4 md:mb-0">
-              <Image src="/logo.png" alt="GitTask Logo" width={20} height={20} />
-              <span className="font-bold text-lg">GitTask</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              © 2025 GitTask. All rights reserved.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <LandingFooter />
     </div>
   );
 }
