@@ -130,7 +130,7 @@ export class WebhooksService {
 
 
     async handlePushEvent(payload: any) {
-        const { repository, installation, pusher, commits } = payload;
+        const { repository, installation, pusher, commits, head_commit } = payload;
 
         if (!repository || !pusher || !commits) {
             throw new BadRequestException('Invalid payload structure');
@@ -152,19 +152,59 @@ export class WebhooksService {
             };
         }
 
-        // Queue scan with latest commit info
-        await this.tasksService.queueScan(
-            monitoredRepo.id,
-            monitoredRepo.user.id,
-            5 // Priority level
-        );
+        // Format commit data for incremental scanning
+        const formattedCommits = commits.map(commit => ({
+            id: commit.id,
+            message: commit.message,
+            author: {
+                name: commit.author.name,
+                username: commit.author.username || commit.committer?.username || commit.author.name,
+            },
+            timestamp: commit.timestamp,
+        }));
 
-        this.logger.log(`Scan queued for ${repoFullName} (user: ${monitoredRepo.user.id})`);
+        try {
+            // Use incremental scan to detect task changes in commits
+            const scanResult = await this.tasksService.scanCommits(
+                monitoredRepo.id,
+                monitoredRepo.user.id,
+                formattedCommits,
+                repoFullName
+            );
 
-        return {
-            message: 'Scan queued successfully.',
-            repository: repoFullName,
-            commits: commits.length
+            this.logger.log(
+                `✅ Incremental scan completed for ${repoFullName}: ` +
+                `${scanResult.completed} completed, ${scanResult.added} added, ${scanResult.modified} modified`
+            );
+
+            return {
+                message: 'Incremental scan completed successfully.',
+                repository: repoFullName,
+                commits: commits.length,
+                results: {
+                    tasksCompleted: scanResult.completed,
+                    tasksAdded: scanResult.added,
+                    tasksModified: scanResult.modified,
+                }
+            };
+        } catch (error) {
+            this.logger.error(`Error during incremental scan: ${error.message}`);
+            
+            // Fallback to full scan if incremental scan fails
+            this.logger.log(`Falling back to full repository scan for ${repoFullName}`);
+            
+            await this.tasksService.queueScan(
+                monitoredRepo.id,
+                monitoredRepo.user.id,
+                5 // Priority level
+            );
+
+            return {
+                message: 'Incremental scan failed, full scan queued.',
+                repository: repoFullName,
+                commits: commits.length,
+                error: error.message
+            };
         }
     }
     verifySignature(payload: string, signature: string): boolean {

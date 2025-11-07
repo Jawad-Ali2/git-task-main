@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository as RepoEntity } from '../repositories/entities/repository.entity';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { Task } from './entities/tasks.entity';
 import Redis from 'ioredis';
 import { Octokit } from '@octokit/rest';
@@ -31,6 +31,15 @@ export class TasksService {
     private readonly SCAN_LOCK_PREFIX = 'scan:lock:'; // Redis key for scan locks
     private isProcessing = false;
 
+    // Security constants
+    private readonly MAX_COMMITS_PER_PUSH = 50;
+    private readonly MAX_FILES_PER_COMMIT = 100;
+    private readonly MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+    private readonly MAX_STRING_LENGTH = 1000;
+    private readonly MAX_DESCRIPTION_LENGTH = 500;
+    private readonly MAX_USERNAME_LENGTH = 100;
+    private readonly FUZZY_MATCH_THRESHOLD = 0.8;
+
 
     constructor(
         @InjectRepository(RepoEntity)
@@ -45,8 +54,169 @@ export class TasksService {
         private readonly notificationsService: NotificationsService,
         
         private readonly aiService: AiService,
+
+        private readonly dataSource: DataSource,
     ) {
         this.startWorker();
+    }
+
+    // ==================== Security & Validation Helpers ====================
+
+    /**
+     * Sanitize string by removing control characters and limiting length
+     */
+    private sanitizeString(str: string | undefined | null, maxLength: number): string {
+        if (!str) return '';
+        // Remove null bytes, control characters (except newlines/tabs for descriptions)
+        const cleaned = str.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+        return cleaned.trim().substring(0, maxLength);
+    }
+
+    /**
+     * Redact sensitive patterns from strings before logging
+     */
+    private redactSensitive(text: string): string {
+        if (!text) return '';
+        return text
+            .replace(/[A-Za-z0-9_-]{32,}/g, '***') // API keys, tokens
+            .replace(/password[s]?[:\s=]+[^\s]+/gi, 'password=***')
+            .replace(/token[s]?[:\s=]+[^\s]+/gi, 'token=***')
+            .replace(/secret[s]?[:\s=]+[^\s]+/gi, 'secret=***')
+            .replace(/key[s]?[:\s=]+[^\s]+/gi, 'key=***');
+    }
+
+    /**
+     * Validate commit SHA format
+     */
+    private validateSHA(sha: string): string {
+        if (!sha || !/^[a-f0-9]{40}$/i.test(sha)) {
+            throw new Error('Invalid commit SHA format');
+        }
+        return sha;
+    }
+
+    /**
+     * Validate timestamp and convert to Date
+     */
+    private validateTimestamp(timestamp: string): Date {
+        const date = new Date(timestamp);
+        if (isNaN(date.getTime())) {
+            throw new Error('Invalid timestamp format');
+        }
+        // Reject timestamps too far in the past or future
+        const now = Date.now();
+        const year = 365 * 24 * 60 * 60 * 1000;
+        if (date.getTime() < now - 10 * year || date.getTime() > now + year) {
+            throw new Error('Timestamp out of reasonable range');
+        }
+        return date;
+    }
+
+    /**
+     * Validate line number
+     */
+    private validateLineNumber(line: number): number {
+        if (!Number.isInteger(line) || line < 0 || line > 1_000_000) {
+            throw new Error(`Invalid line number: ${line}`);
+        }
+        return line;
+    }
+
+    /**
+     * Sanitize file path
+     */
+    private sanitizePath(path: string, maxLength: number): string {
+        if (!path) return '';
+        // Remove null bytes and excessive slashes
+        const cleaned = path
+            .replace(/\x00/g, '')
+            .replace(/\/+/g, '/')
+            .trim();
+        return cleaned.substring(0, maxLength);
+    }
+
+    /**
+     * Sanitize and validate commit data from webhook
+     */
+    private sanitizeCommitData(commit: any): {
+        id: string;
+        message: string;
+        author: { name: string; username: string };
+        timestamp: string;
+    } {
+        if (!commit) {
+            throw new Error('Commit data is null or undefined');
+        }
+
+        return {
+            id: this.validateSHA(commit.id),
+            message: this.sanitizeString(commit.message, this.MAX_STRING_LENGTH),
+            author: {
+                name: this.sanitizeString(
+                    commit.author?.name || 'Unknown',
+                    this.MAX_USERNAME_LENGTH
+                ),
+                username: this.sanitizeString(
+                    commit.author?.username || 
+                    commit.committer?.username || 
+                    commit.author?.name || 
+                    'unknown',
+                    this.MAX_USERNAME_LENGTH
+                ),
+            },
+            timestamp: commit.timestamp, // Keep as string for now, validate when converting to Date
+        };
+    }
+
+    // ==================== End Security Helpers ====================
+
+    /**
+     * Compute similarity between two normalized strings based on Levenshtein distance.
+     * Returns value between 0 and 1 (1 = identical)
+     */
+    private similarity(a: string, b: string): number {
+        if (!a && !b) return 1;
+        if (!a || !b) return 0;
+        const dist = this.levenshtein(a, b);
+        const maxLen = Math.max(a.length, b.length);
+        if (maxLen === 0) return 1;
+        return 1 - dist / maxLen;
+    }
+
+    /**
+     * Levenshtein distance implementation with performance optimization
+     */
+    private levenshtein(a: string, b: string): number {
+        // Early exit for identical strings
+        if (a === b) return 0;
+        
+        // Limit string length for performance (O(n*m) complexity)
+        const MAX_COMPARE_LENGTH = 500;
+        const a_trimmed = a.substring(0, MAX_COMPARE_LENGTH);
+        const b_trimmed = b.substring(0, MAX_COMPARE_LENGTH);
+        
+        // Early exit if length difference is too large (not similar)
+        const lengthDiff = Math.abs(a_trimmed.length - b_trimmed.length);
+        if (lengthDiff > a_trimmed.length * 0.5) {
+            return Math.max(a_trimmed.length, b_trimmed.length); // Max possible distance
+        }
+
+        const alen = a_trimmed.length;
+        const blen = b_trimmed.length;
+        const dp: number[][] = Array.from({ length: alen + 1 }, () => Array(blen + 1).fill(0));
+        for (let i = 0; i <= alen; i++) dp[i][0] = i;
+        for (let j = 0; j <= blen; j++) dp[0][j] = j;
+        for (let i = 1; i <= alen; i++) {
+            for (let j = 1; j <= blen; j++) {
+                const cost = a_trimmed[i - 1] === b_trimmed[j - 1] ? 0 : 1;
+                dp[i][j] = Math.min(
+                    dp[i - 1][j] + 1,
+                    dp[i][j - 1] + 1,
+                    dp[i - 1][j - 1] + cost
+                );
+            }
+        }
+        return dp[alen][blen];
     }
 
     /**
@@ -348,6 +518,22 @@ export class TasksService {
     }
 
     /**
+     * Normalize task descriptions for more robust matching
+     * - lowercase
+     * - collapse whitespace
+     * - remove punctuation
+     */
+    private normalizeDescription(desc: string): string {
+        if (!desc) return '';
+        // Remove punctuation, collapse whitespace, lowercase
+        return desc
+            .replace(/[\p{P}$+<=>^`|~]/gu, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    /**
      * Fetch file contents in batch
      */
     private async fetchFileContents(
@@ -397,7 +583,7 @@ export class TasksService {
     /**
      * Extract tasks using regex (simple parser for now)
      */
-    private async extractTasksFromFiles(files: any[]) {
+    private async extractTasksFromFiles(files: any[], skipAI: boolean = false) {
         const tasks: Array<{ 
             description: string; 
             type: string;
@@ -445,8 +631,8 @@ export class TasksService {
             })
         }
 
-        // Perform AI analysis on all tasks
-        if (tasks.length > 0 && this.aiService.isAvailable()) {
+        // Perform AI analysis on all tasks (unless skipAI is true)
+        if (!skipAI && tasks.length > 0 && this.aiService.isAvailable()) {
             this.logger.log(`🤖 Analyzing ${tasks.length} tasks with AI...`);
             
             try {
@@ -475,12 +661,13 @@ export class TasksService {
                     delete (task as any).surroundingCode;
                 });
             }
-        } else {
-            // Remove temporary surroundingCode field if AI is not available
+        } else if (!skipAI) {
+            // Remove temporary surroundingCode field if AI is not available (but only if not skipping)
             tasks.forEach(task => {
                 delete (task as any).surroundingCode;
             });
         }
+        // If skipAI is true, keep surroundingCode for later analysis
 
         return tasks;
     }
@@ -501,6 +688,415 @@ export class TasksService {
     private async isCancelled(repoId: string): Promise<boolean> {
         const cancelled = await this.redis.get(`scan:${repoId}:cancel`);
         return cancelled === '1';
+    }
+
+    /**
+     * Incremental scan: analyze specific commits instead of full repository
+     * Detects completed tasks, new tasks, and modified tasks
+     */
+    async scanCommits(
+        repoId: string, 
+        userId: string, 
+        commits: Array<{ id: string; message: string; author: { name: string; username?: string }; timestamp: string }>,
+        repoFullName: string
+    ): Promise<{ 
+        completed: number; 
+        added: number; 
+        modified: number; 
+        details: any 
+    }> {
+        // ✅ Security: Sanitize and limit commits
+        const sanitizedCommits = commits
+            .slice(0, this.MAX_COMMITS_PER_PUSH)
+            .map(c => this.sanitizeCommitData(c));
+
+        if (commits.length > this.MAX_COMMITS_PER_PUSH) {
+            this.logger.warn(
+                `⚠️ Truncated ${commits.length} commits to ${this.MAX_COMMITS_PER_PUSH} for ${repoFullName}`
+            );
+        }
+
+        this.logger.log(
+            `🔄 Starting incremental scan for ${sanitizedCommits.length} commits in ${repoFullName}`
+        );
+
+        // ✅ Security: Acquire distributed lock to prevent race conditions
+        const lockKey = `commit-scan:${repoId}`;
+        const lockAcquired = await this.redis.set(lockKey, '1', 'EX', 300, 'NX');
+        
+        if (!lockAcquired) {
+            this.logger.warn(`Repository ${repoId} is already being scanned, skipping`);
+            return { 
+                completed: 0, 
+                added: 0, 
+                modified: 0, 
+                details: { skipped: true, reason: 'Scan already in progress' } 
+            };
+        }
+
+        try {
+            const repo = await this.repoEntity.createQueryBuilder('repository')
+                .leftJoinAndSelect('repository.user', 'user')
+                .addSelect('user.githubAccessToken')
+                .where('repository.id = :repoId', { repoId })
+                .andWhere('user.id = :userId', { userId })
+                .getOne();
+
+            if (!repo?.user) {
+                throw new Error('Repository not found');
+            }
+
+            const token = repo.user.decryptGithubToken();
+            if (!token) {
+                throw new Error('Invalid GitHub token');
+            }
+
+            const octokit = new Octokit({ auth: token });
+            const [owner, repoName] = repoFullName.split('/');
+
+            let completedCount = 0;
+            let addedCount = 0;
+            let modifiedCount = 0;
+            const details: any = {
+                completed: [],
+                added: [],
+                modified: []
+            };
+
+            // Process each commit
+            for (const commit of sanitizedCommits) {
+                try {
+                    this.logger.log(
+                        `Processing commit ${commit.id.substring(0, 7)} by ${this.redactSensitive(commit.author.name)}`
+                    );
+
+                    // Get commit details with file changes
+                    const { data: commitData } = await octokit.repos.getCommit({
+                        owner,
+                        repo: repoName,
+                        ref: commit.id,
+                    });
+
+                    // ✅ Security: Limit files per commit
+                    const allFiles = commitData.files || [];
+                    const relevantFiles = allFiles
+                        .filter(file => this.shouldProcessFile(file.filename))
+                        .filter(file => file.status === 'modified' || file.status === 'added' || file.status === 'removed')
+                        .slice(0, this.MAX_FILES_PER_COMMIT);
+
+                    if (allFiles.length > this.MAX_FILES_PER_COMMIT) {
+                        this.logger.warn(
+                            `⚠️ Truncated ${allFiles.length} files to ${this.MAX_FILES_PER_COMMIT} in commit ${commit.id.substring(0, 7)}`
+                        );
+                    }
+
+                    this.logger.log(`Found ${relevantFiles.length} relevant files in commit ${commit.id.substring(0, 7)}`);
+
+                    for (const file of relevantFiles) {
+                        const filePath = this.sanitizePath(file.filename, this.MAX_STRING_LENGTH);
+
+                        // Get existing tasks for this file
+                        const existingTasks = await this.taskRepo.find({
+                            where: { 
+                                repository: { id: repoId },
+                            filePath: filePath 
+                        }
+                    });
+
+                    if (file.status === 'removed') {
+                        // File was deleted - mark all tasks as completed
+                        for (const task of existingTasks) {
+                            task.status = 'done';
+                            task.completedBy = commit.author.username || commit.author.name;
+                            task.completedAt = new Date(commit.timestamp);
+                            task.completedInCommit = commit.id;
+                            await this.taskRepo.save(task);
+                            completedCount++;
+                            details.completed.push({
+                                task: task.description,
+                                file: filePath,
+                                completedBy: task.completedBy,
+                                commit: commit.id.substring(0, 7)
+                            });
+                        }
+                        continue;
+                    }
+
+                    // Get current file content
+                    let currentContent = '';
+                    try {
+                        const { data: fileData } = await octokit.repos.getContent({
+                            owner,
+                            repo: repoName,
+                            path: filePath,
+                            ref: commit.id,
+                        });
+
+                        if ('content' in fileData && fileData.content) {
+                            // ✅ Security: Check file size before decoding
+                            const contentSize = Buffer.from(fileData.content, 'base64').length;
+                            
+                            if (contentSize > this.MAX_FILE_SIZE_BYTES) {
+                                this.logger.warn(
+                                    `File ${filePath} exceeds size limit (${contentSize} bytes), skipping`
+                                );
+                                continue;
+                            }
+                            
+                            currentContent = Buffer.from(fileData.content, 'base64').toString('utf-8');
+                        }
+                    } catch (error) {
+                        this.logger.warn(`Could not fetch content for ${filePath}: ${error.message}`);
+                        continue;
+                    }
+
+                    // Extract tasks from current content (WITHOUT AI analysis for now)
+                    const currentTasks = await this.extractTasksFromFiles([{
+                        path: filePath,
+                        content: currentContent
+                    }], true); // ✅ Skip AI analysis initially (analyze only NEW tasks later)
+                    // Reconcile tasks for this file (new method)
+                    const fileResult = await this.reconcileFileTasks(filePath, existingTasks, currentTasks, commit, repo);
+                    completedCount += fileResult.completed;
+                    addedCount += fileResult.added;
+                    modifiedCount += fileResult.modified;
+                    details.completed.push(...fileResult.details.completed);
+                    details.added.push(...fileResult.details.added);
+                    details.modified.push(...fileResult.details.modified);
+                }
+            } catch (error) {
+                this.logger.error(
+                    `Error processing commit ${commit.id.substring(0, 7)}: ${error.message}`,
+                    {
+                        commit: commit.id,
+                        repository: repoId,
+                        error: error.stack,
+                    }
+                );
+            }
+        }
+
+        // Send notification about changes
+        await this.sendScanNotification(
+            userId,
+            NotificationType.SCAN_COMPLETED,
+            'Commit Scan Completed',
+            `${completedCount} completed, ${addedCount} added, ${modifiedCount} modified`,
+            repoId,
+            { completed: completedCount, added: addedCount, modified: modifiedCount, details }
+        );
+
+        this.logger.log(
+            `✨ Incremental scan complete: ${completedCount} completed, ${addedCount} added, ${modifiedCount} modified`
+        );
+
+        return { completed: completedCount, added: addedCount, modified: modifiedCount, details };
+        } finally {
+            // ✅ Security: Always release lock
+            await this.redis.del(lockKey);
+        }
+    }
+
+    /**
+     * Reconcile tasks for a single file given existing DB tasks and current file-extracted tasks
+     * Uses transaction to ensure data consistency
+     */
+    private async reconcileFileTasks(
+        filePath: string,
+        existingTasks: Task[],
+        currentTasks: Array<{ description: string; type: string; priority: string; filePath: string; lineNumber: number; status: string; surroundingCode?: string }>,
+        commit: { id: string; message: string; author: { name: string; username?: string }; timestamp: string },
+        repo: any
+    ) {
+        // ✅ Track truly new tasks for AI analysis
+        const tasksNeedingAI: Task[] = [];
+        
+        // ✅ Security: Use transaction for atomic updates
+        const result = await this.dataSource.transaction(async (manager) => {
+            const taskRepo = manager.getRepository(Task);
+            
+            let completed = 0;
+            let added = 0;
+            let modified = 0;
+            const details: any = { completed: [], added: [], modified: [] };
+
+            // Build maps
+            const existingTaskMap = new Map(
+                existingTasks.map(task => [
+                    `${task.filePath}:${task.lineNumber}:${task.type}:${this.normalizeDescription(task.description)}`,
+                    task
+                ])
+            );
+
+            const existingByDescType = new Map<string, Task[]>();
+            for (const t of existingTasks) {
+                const key = `${this.normalizeDescription(t.description)}||${t.type}`;
+                if (!existingByDescType.has(key)) existingByDescType.set(key, []);
+                existingByDescType.get(key)!.push(t);
+            }
+
+            const matchedExistingIds = new Set<string>();
+
+        for (const currentTask of currentTasks) {
+            const identifier = `${currentTask.filePath}:${currentTask.lineNumber}:${currentTask.type}:${this.normalizeDescription(currentTask.description)}`;
+            const exactMatch = existingTaskMap.get(identifier);
+
+            if (exactMatch) {
+                matchedExistingIds.add(exactMatch.id);
+                continue;
+            }
+
+            const descKey = `${this.normalizeDescription(currentTask.description)}||${currentTask.type}`;
+            const candidates = existingByDescType.get(descKey) || [];
+
+            let chosen: Task | undefined = candidates.find(c => c.filePath === filePath && !matchedExistingIds.has(c.id));
+            if (!chosen) chosen = candidates.find(c => !matchedExistingIds.has(c.id));
+
+            if (!chosen && candidates.length > 0) {
+                let best: { candidate: Task; score: number } | null = null;
+                const normCurrent = this.normalizeDescription(currentTask.description);
+                for (const c of candidates) {
+                    if (matchedExistingIds.has(c.id)) continue;
+                    const normCandidate = this.normalizeDescription(c.description);
+                    const score = this.similarity(normCurrent, normCandidate);
+                    if (!best || score > best.score) best = { candidate: c, score };
+                }
+                if (best && best.score >= this.FUZZY_MATCH_THRESHOLD) {
+                    chosen = best.candidate;
+                    this.logger.log(
+                        `🔎 Fuzzy matched task "${this.redactSensitive(currentTask.description)}" -> ` +
+                        `"${this.redactSensitive(chosen.description)}" (score=${best.score.toFixed(2)})`
+                    );
+                }
+            }
+
+            if (chosen) {
+                const oldLine = chosen.lineNumber;
+                // ✅ Security: Validate line number
+                chosen.lineNumber = this.validateLineNumber(currentTask.lineNumber);
+                chosen.lastModifiedBy = this.sanitizeString(
+                    commit.author.username || commit.author.name,
+                    this.MAX_USERNAME_LENGTH
+                );
+                chosen.lastModifiedAt = this.validateTimestamp(commit.timestamp);
+                chosen.lastModifiedInCommit = commit.id;
+                await taskRepo.save(chosen);
+                modified++;
+                matchedExistingIds.add(chosen.id);
+                details.modified.push({
+                    task: this.sanitizeString(currentTask.description, this.MAX_DESCRIPTION_LENGTH),
+                    file: filePath,
+                    oldLine,
+                    newLine: currentTask.lineNumber,
+                    modifiedBy: chosen.lastModifiedBy,
+                    commit: commit.id.substring(0, 7)
+                });
+                this.logger.log(
+                    `📝 Task moved/updated: ${this.redactSensitive(currentTask.description)} ` +
+                    `(line ${oldLine} → ${currentTask.lineNumber})`
+                );
+                continue;
+            }
+
+            // ✅ Security: Validate and sanitize all task data before creating
+            const newTask = taskRepo.create({
+                description: this.sanitizeString(currentTask.description, this.MAX_DESCRIPTION_LENGTH),
+                type: currentTask.type,
+                priority: currentTask.priority,
+                filePath: this.sanitizePath(currentTask.filePath, this.MAX_STRING_LENGTH),
+                lineNumber: this.validateLineNumber(currentTask.lineNumber),
+                status: currentTask.status,
+                repository: repo,
+                addedBy: this.sanitizeString(
+                    commit.author.username || commit.author.name,
+                    this.MAX_USERNAME_LENGTH
+                ),
+                addedAt: this.validateTimestamp(commit.timestamp),
+                addedInCommit: commit.id,
+            });
+            await taskRepo.save(newTask);
+            
+            // ✅ Track for AI analysis (store surrounding code temporarily)
+            (newTask as any).surroundingCode = currentTask.surroundingCode;
+            tasksNeedingAI.push(newTask);
+            
+            added++;
+            details.added.push({
+                task: newTask.description,
+                file: filePath,
+                line: currentTask.lineNumber,
+                addedBy: newTask.addedBy,
+                commit: commit.id.substring(0, 7)
+            });
+            this.logger.log(
+                `➕ New task added: ${this.redactSensitive(currentTask.description)} ` +
+                `(line ${currentTask.lineNumber})`
+            );
+        }
+
+        for (const task of existingTasks) {
+            if (!matchedExistingIds.has(task.id)) {
+                task.status = 'done';
+                task.completedBy = this.sanitizeString(
+                    commit.author.username || commit.author.name,
+                    this.MAX_USERNAME_LENGTH
+                );
+                task.completedAt = this.validateTimestamp(commit.timestamp);
+                task.completedInCommit = commit.id;
+                await taskRepo.save(task);
+                completed++;
+                details.completed.push({
+                    task: this.sanitizeString(task.description, this.MAX_DESCRIPTION_LENGTH),
+                    file: filePath,
+                    line: task.lineNumber,
+                    completedBy: task.completedBy,
+                    commit: commit.id.substring(0, 7)
+                });
+                this.logger.log(
+                    `✅ Task completed: ${this.redactSensitive(task.description)} ` +
+                    `(line ${task.lineNumber})`
+                );
+            }
+        }
+
+            return { completed, added, modified, details };
+        });
+
+        // ✅ AI Analysis: Only analyze truly NEW tasks (not line-shifted ones)
+        if (tasksNeedingAI.length > 0 && this.aiService.isAvailable()) {
+            this.logger.log(`🤖 Analyzing ${tasksNeedingAI.length} NEW tasks with AI...`);
+            
+            try {
+                const analyses = await this.aiService.analyzeTasks(
+                    tasksNeedingAI.map(task => ({
+                        description: task.description,
+                        type: task.type,
+                        filePath: task.filePath,
+                        lineNumber: task.lineNumber,
+                        surroundingCode: (task as any).surroundingCode,
+                    }))
+                );
+
+                // Update tasks with AI analysis results
+                for (let i = 0; i < tasksNeedingAI.length; i++) {
+                    tasksNeedingAI[i].ai_summary = analyses[i].summary;
+                    tasksNeedingAI[i].debt_score = analyses[i].debtScore;
+                    delete (tasksNeedingAI[i] as any).surroundingCode;
+                }
+
+                // Save AI results to database
+                await this.taskRepo.save(tasksNeedingAI);
+                this.logger.log(`✅ AI analysis completed for ${tasksNeedingAI.length} NEW tasks`);
+            } catch (error) {
+                this.logger.error(`Failed to analyze new tasks with AI: ${error.message}`);
+                // Clean up temporary field
+                tasksNeedingAI.forEach(task => {
+                    delete (task as any).surroundingCode;
+                });
+            }
+        }
+
+        return result;
     }
 
     async onModuleDestroy() {

@@ -27,6 +27,16 @@ interface Task {
         id: string;
         name: string;
     };
+    // Commit tracking fields
+    addedBy?: string;
+    addedAt?: string;
+    addedInCommit?: string;
+    completedBy?: string;
+    completedAt?: string;
+    completedInCommit?: string;
+    lastModifiedBy?: string;
+    lastModifiedAt?: string;
+    lastModifiedInCommit?: string;
 }
 
 export default function RepositoryTasksPage() {
@@ -427,6 +437,54 @@ export default function RepositoryTasksPage() {
                                                 <span>Line {task.lineNumber}</span>
                                             </div>
                                         </div>
+
+                                        {/* Commit tracking info */}
+                                        {(task.addedBy || task.completedBy || task.lastModifiedBy) && (
+                                            <div className="mt-3 pt-3 border-t border-muted space-y-1 text-xs text-muted-foreground">
+                                                {task.addedBy && (
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="font-medium">Added by:</span>
+                                                        <span>{task.addedBy}</span>
+                                                        {task.addedAt && (
+                                                            <span>• {new Date(task.addedAt).toLocaleDateString()}</span>
+                                                        )}
+                                                        {task.addedInCommit && (
+                                                            <code className="bg-muted px-1 py-0.5 rounded text-[10px]">
+                                                                {task.addedInCommit.substring(0, 7)}
+                                                            </code>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {task.lastModifiedBy && (
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="font-medium">Modified by:</span>
+                                                        <span>{task.lastModifiedBy}</span>
+                                                        {task.lastModifiedAt && (
+                                                            <span>• {new Date(task.lastModifiedAt).toLocaleDateString()}</span>
+                                                        )}
+                                                        {task.lastModifiedInCommit && (
+                                                            <code className="bg-muted px-1 py-0.5 rounded text-[10px]">
+                                                                {task.lastModifiedInCommit.substring(0, 7)}
+                                                            </code>
+                                                        )}
+                                                    </div>
+                                                )}
+                                                {task.completedBy && (
+                                                    <div className="flex items-center gap-1 text-green-600">
+                                                        <span className="font-medium">Completed by:</span>
+                                                        <span>{task.completedBy}</span>
+                                                        {task.completedAt && (
+                                                            <span>• {new Date(task.completedAt).toLocaleDateString()}</span>
+                                                        )}
+                                                        {task.completedInCommit && (
+                                                            <code className="bg-green-100 text-green-700 px-1 py-0.5 rounded text-[10px]">
+                                                                {task.completedInCommit.substring(0, 7)}
+                                                            </code>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>
