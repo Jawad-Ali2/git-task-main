@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Search, Filter, Code, FileText, AlertCircle, CheckCircle, Clock, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Code } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import axiosInstance from '@/lib/axios';
-import Link from 'next/link';
+import { TaskCodeSnippetModal } from '@/components/task-code-snippet-modal';
+import { PageHeader } from '@/components/page-header';
+import { TaskFilters } from '@/components/task-filters';
+import { TaskCard } from '@/components/task-card';
+import { EmptyState, LoadingState } from '@/components/empty-state';
+import { useTaskFilters } from '@/hooks/useTaskFilters';
 
 interface Task {
   id: string;
@@ -24,6 +25,12 @@ interface Task {
     id: string;
     name: string;
   };
+  // Extended fields with dummy data
+  author?: string;
+  authorEmail?: string;
+  authorAvatar?: string;
+  codeSnippet?: string;
+  context?: string;
   // Commit tracking fields
   addedBy?: string;
   addedAt?: string;
@@ -38,117 +45,48 @@ interface Task {
 
 export default function TasksPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [filteredTasks, setFilteredTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('all');
-  const [priorityFilter, setPriorityFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [repoFilter, setRepoFilter] = useState('all');
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isCodeSnippetModalOpen, setIsCodeSnippetModalOpen] = useState(false);
+
+  const {
+    searchQuery,
+    setSearchQuery,
+    typeFilter,
+    setTypeFilter,
+    priorityFilter,
+    setPriorityFilter,
+    statusFilter,
+    setStatusFilter,
+    repoFilter,
+    setRepoFilter,
+    filteredTasks,
+    clearFilters,
+  } = useTaskFilters({ tasks });
 
   useEffect(() => {
     fetchTasks();
   }, []);
 
-  useEffect(() => {
-    filterTasks();
-  }, [tasks, searchQuery, typeFilter, priorityFilter, statusFilter, repoFilter]);
-
   const fetchTasks = async () => {
     setLoading(true);
     try {
       const response = await axiosInstance.get('/tasks');
-      setTasks(response.data || []);
+      // Add dummy author data and code snippets
+      const tasksWithExtras = (response.data || []).map((task: Task) => ({
+        ...task,
+        authorAvatar: "https://avatar.iran.liara.run/public",
+        author: ['John Doe', 'Jane Smith', 'Bob Wilson', 'Alice Johnson'][Math.floor(Math.random() * 4)],
+        authorEmail: ['john@example.com', 'jane@example.com', 'bob@example.com', 'alice@example.com'][Math.floor(Math.random() * 4)],
+        codeSnippet: `// ${task.filePath}:${task.lineNumber}\nfunction example() {\n  // ${task.type}: ${task.description}\n  // Implementation needed here\n}`,
+        context: `This ${task.type} task in ${task.filePath} requires attention. The issue is located at line ${task.lineNumber} and should be addressed with ${task.priority} priority.`,
+      }));
+      setTasks(tasksWithExtras);
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const filterTasks = () => {
-    let filtered = [...tasks];
-
-    // Search filter
-    if (searchQuery) {
-      filtered = filtered.filter(
-        (task) =>
-          task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          task.filePath.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          task.repository.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Type filter
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter((task) => task.type === typeFilter);
-    }
-
-    // Priority filter
-    if (priorityFilter !== 'all') {
-      filtered = filtered.filter((task) => task.priority === priorityFilter);
-    }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((task) => task.status === statusFilter);
-    }
-
-    // Repository filter
-    if (repoFilter !== 'all') {
-      filtered = filtered.filter((task) => task.repository.id === repoFilter);
-    }
-
-    setFilteredTasks(filtered);
-  };
-
-  const getTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      TODO: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-      FIXME: 'bg-red-500/10 text-red-500 border-red-500/20',
-      HACK: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
-      NOTE: 'bg-green-500/10 text-green-500 border-green-500/20',
-      BUG: 'bg-red-600/10 text-red-600 border-red-600/20',
-    };
-    return colors[type] || 'bg-gray-500/10 text-gray-500 border-gray-500/20';
-  };
-
-  const getPriorityColor = (priority: string) => {
-    const colors: Record<string, string> = {
-      high: 'bg-red-500/10 text-red-500',
-      medium: 'bg-yellow-500/10 text-yellow-500',
-      low: 'bg-green-500/10 text-green-500',
-    };
-    return colors[priority] || 'bg-gray-500/10 text-gray-500';
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return <Clock className="h-4 w-4" />;
-      case 'in_progress':
-        return <Loader2 className="h-4 w-4 animate-spin" />;
-      case 'completed':
-        return <CheckCircle className="h-4 w-4" />;
-      default:
-        return <AlertCircle className="h-4 w-4" />;
-    }
-  };
-
-  const getDebtScoreColor = (score: number) => {
-    if (score >= 81) return 'text-red-600 bg-red-500/10 border-red-500/20';
-    if (score >= 61) return 'text-orange-600 bg-orange-500/10 border-orange-500/20';
-    if (score >= 41) return 'text-yellow-600 bg-yellow-500/10 border-yellow-500/20';
-    if (score >= 21) return 'text-blue-600 bg-blue-500/10 border-blue-500/20';
-    return 'text-green-600 bg-green-500/10 border-green-500/20';
-  };
-
-  const getDebtScoreLabel = (score: number) => {
-    if (score >= 81) return 'Critical';
-    if (score >= 61) return 'High';
-    if (score >= 41) return 'Medium';
-    if (score >= 21) return 'Low';
-    return 'Minor';
   };
 
   const uniqueRepos = Array.from(new Set(tasks.map((t) => t.repository.id))).map((id) => {
@@ -163,213 +101,103 @@ export default function TasksPage() {
     completed: tasks.filter((t) => t.status === 'completed').length,
   };
 
+  if (loading) {
+    return <LoadingState text="Loading tasks..." />;
+  }
+
   return (
     <div className='space-y-6'>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Tasks</h2>
-          <p className="text-muted-foreground">
-            Overview of your tasks
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Tasks"
+        description="Overview of your tasks"
+      />
+
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Total Tasks</CardDescription>
+            <CardTitle className="text-sm">Total Tasks</CardTitle>
             <CardTitle className="text-3xl">{stats.total}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Pending</CardDescription>
+            <CardTitle className="text-sm">Pending</CardTitle>
             <CardTitle className="text-3xl text-yellow-500">{stats.pending}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>In Progress</CardDescription>
+            <CardTitle className="text-sm">In Progress</CardTitle>
             <CardTitle className="text-3xl text-blue-500">{stats.inProgress}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Completed</CardDescription>
+            <CardTitle className="text-sm">Completed</CardTitle>
             <CardTitle className="text-3xl text-green-500">{stats.completed}</CardTitle>
           </CardHeader>
         </Card>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Filter className="h-5 w-5" />
-            Filters
-          </CardTitle>
-        </CardHeader>
+      {/* Tasks List */}
+      <Card>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search tasks..."
-                value={searchQuery}
-                onChange={(e: any) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+          <TaskFilters
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            typeFilter={typeFilter}
+            onTypeChange={setTypeFilter}
+            priorityFilter={priorityFilter}
+            onPriorityChange={setPriorityFilter}
+            statusFilter={statusFilter}
+            onStatusChange={setStatusFilter}
+            repoFilter={repoFilter}
+            onRepoChange={setRepoFilter}
+            repositories={uniqueRepos}
+            onClearFilters={clearFilters}
+            showRepoFilter={true}
+            totalCount={tasks.length}
+            filteredCount={filteredTasks.length}
+            layout='horizontal'
+          />
+
+
+          {/* Tasks List */}
+          {filteredTasks.length === 0 ? (
+            <EmptyState
+              icon={Code}
+              title="No tasks found"
+              description="Try scanning your repositories or adjusting your filters"
+            />
+          ) : (
+            <div className="divide-y">
+              {filteredTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  onViewCode={(task) => {
+                    setSelectedTask(task);
+                    setIsCodeSnippetModalOpen(true);
+                  }}
+                  onCreateCard={(task) => {
+                    setSelectedTask(task);
+                  }}
+                  showRepository={true}
+                  layout="detailed"
+                />
+              ))}
             </div>
-
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                <SelectItem value="TODO">TODO</SelectItem>
-                <SelectItem value="FIXME">FIXME</SelectItem>
-                <SelectItem value="HACK">HACK</SelectItem>
-                <SelectItem value="NOTE">NOTE</SelectItem>
-                <SelectItem value="BUG">BUG</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={repoFilter} onValueChange={setRepoFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="Repository" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Repositories</SelectItem>
-                {uniqueRepos.map((repo) => (
-                  <SelectItem key={repo.id} value={repo.id}>
-                    {repo.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing {filteredTasks.length} of {tasks.length} tasks
-            </p>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSearchQuery('');
-                setTypeFilter('all');
-                setPriorityFilter('all');
-                setStatusFilter('all');
-                setRepoFilter('all');
-              }}
-            >
-              Clear Filters
-            </Button>
-          </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Tasks List */}
-      {loading ? (
-        <div className="text-center py-12">
-          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading tasks...</p>
-        </div>
-      ) : filteredTasks.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Code className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground mb-2">No tasks found</p>
-            <p className="text-sm text-muted-foreground">
-              Try scanning your repositories or adjusting your filters
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {filteredTasks.map((task) => (
-            <Card key={task.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <Badge className={getTypeColor(task.type)}>{task.type}</Badge>
-                      <Badge variant="outline" className={getPriorityColor(task.priority)}>
-                        {task.priority}
-                      </Badge>
-                      <div className="flex items-center gap-1">
-                        {getStatusIcon(task.status)}
-                        <span className="text-sm text-muted-foreground capitalize">
-                          {task.status.replace('_', ' ')}
-                        </span>
-                      </div>
-                      {task.debt_score !== null && task.debt_score !== undefined && (
-                        <Badge variant="outline" className={getDebtScoreColor(task.debt_score)}>
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Debt: {task.debt_score}/100 ({getDebtScoreLabel(task.debt_score)})
-                        </Badge>
-                      )}
-                    </div>
-
-                    <p className="text-lg font-medium mb-2">{task.description}</p>
-
-                    {task.ai_summary && (
-                      <div className="mb-3 p-3 bg-muted/50 rounded-md border border-muted">
-                        <p className="text-sm text-muted-foreground">
-                          <span className="font-semibold text-foreground">AI Summary: </span>
-                          {task.ai_summary}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                      <div className="flex items-center gap-1">
-                        <FileText className="h-4 w-4" />
-                        <span className="truncate">{task.filePath}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Code className="h-4 w-4" />
-                        <span>Line {task.lineNumber}</span>
-                      </div>
-                      <Badge variant="secondary">{task.repository.name}</Badge>
-                    </div>
-                  </div>
-
-                  <Button variant="outline" size="sm">
-                    View Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+      {/* Modals */}
+      <TaskCodeSnippetModal
+        open={isCodeSnippetModalOpen}
+        onOpenChange={setIsCodeSnippetModalOpen}
+        task={selectedTask}
+      />
     </div>
   );
 }
