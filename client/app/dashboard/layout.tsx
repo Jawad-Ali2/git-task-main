@@ -2,8 +2,7 @@
 
 import { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { AppSidebar } from "@/components/app-sidebar";
-import { ScanNotificationContainer } from "@/components/scan-notification";
+import { AppSidebar } from "@/components/dashboard/sidebar/app-sidebar";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -18,6 +17,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { NotificationProvider, ScanNotificationContainer } from '@/components/dashboard';
+import { NotificationContextProvider } from '@/contexts/NotificationContext';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -73,44 +74,48 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const breadcrumbs = generateBreadcrumbs();
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        {/* TODO: Fix the header on top */}
-        <header className="bg-bg flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator
-              orientation="vertical"
-              className="mr-2 data-[orientation=vertical]:h-4"
-            />
-            <Breadcrumb>
-              <BreadcrumbList>
-                {breadcrumbs.map((item, index) => (
-                  <div key={index} className="flex items-center">
-                    {index > 0 && <BreadcrumbSeparator className="hidden md:block" />}
-                    <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
-                      {item.href ? (
-                        <BreadcrumbLink href={item.href}>
-                          {item.label}
-                        </BreadcrumbLink>
-                      ) : (
-                        <BreadcrumbPage>{item.label}</BreadcrumbPage>
-                      )}
-                    </BreadcrumbItem>
-                  </div>
-                ))}
-              </BreadcrumbList>
-            </Breadcrumb>
-          </div>
-        </header>
-        <div className="bg-bg flex flex-1 flex-col gap-4 p-4 pt-0 pb-10">
-          {children}
-        </div>
-      </SidebarInset>
-      
-      {/* Scan Notification System */}
-      <ScanNotificationContainer />
-    </SidebarProvider>
+    <NotificationContextProvider>
+      <NotificationProvider>
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarInset>
+            {/* TODO: Fix the header on top */}
+            <header className="bg-bg flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+              <div className="flex items-center gap-2 px-4">
+                <SidebarTrigger className="-ml-1" />
+                <Separator
+                  orientation="vertical"
+                  className="mr-2 data-[orientation=vertical]:h-4"
+                />
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    {breadcrumbs.map((item, index) => (
+                      <div key={index} className="flex items-center">
+                        {index > 0 && <BreadcrumbSeparator className="hidden md:block" />}
+                        <BreadcrumbItem className={index === 0 ? "hidden md:block" : ""}>
+                          {item.href ? (
+                            <BreadcrumbLink href={item.href}>
+                              {item.label}
+                            </BreadcrumbLink>
+                          ) : (
+                            <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                          )}
+                        </BreadcrumbItem>
+                      </div>
+                    ))}
+                  </BreadcrumbList>
+                </Breadcrumb>
+              </div>
+            </header>
+            <div className="bg-bg flex flex-1 flex-col gap-4 p-4 pt-0 pb-10">
+              {children}
+            </div>
+          </SidebarInset>
+
+          {/* Scan Notification System */}
+          <ScanNotificationContainer />
+        </SidebarProvider>
+      </NotificationProvider>
+    </NotificationContextProvider>
   );
 }

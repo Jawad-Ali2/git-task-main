@@ -1,18 +1,8 @@
 import type { Metadata } from "next";
-import { Poppins } from "next/font/google";
 import "./globals.css";
-import Providers from "@/components/Providers";
 import { Toaster } from 'sonner';
-import { NotificationProvider } from "@/components/NotificationProvider";
-import { NotificationContextProvider } from "@/contexts/NotificationContext";
-
-const poppins = Poppins({
-  // variable: "--font-poppins",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
 import { Inter } from "next/font/google";
+import Providers from "@/components/providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -32,11 +22,7 @@ export default function RootLayout({
         className={`${inter.className} antialiased`}
       >
         <Providers>
-          <NotificationContextProvider>
-            <NotificationProvider>
-              {children}
-            </NotificationProvider>
-          </NotificationContextProvider>
+          {children}
         </Providers>
         <Toaster position="top-right" richColors closeButton />
       </body>

@@ -2,9 +2,9 @@ import Link from 'next/link';
 import { ArrowRight, Github, Sparkles, TrendingUp, Zap, Users, BarChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Squares from '@/components/squares-bg';
-import LandingHeader from '@/components/landing-header';
-import LandingFooter from '@/components/landing-footer';
+import LandingHeader from '@/components/landing/header';
+import LandingFooter from '@/components/landing/footer';
+import { Squares } from '@/components/landing';
 
 export default function Home() {
   return (

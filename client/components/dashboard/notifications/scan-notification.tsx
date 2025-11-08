@@ -10,11 +10,11 @@ import {
   triggerMultipleScans,
   selectIsScanningRepo,
 } from '@/redux/scanNotificationSlice';
-import { Button } from './ui/button';
-import { Card } from './ui/card';
-import { Badge } from './ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { X, Loader2, CheckCircle2, FolderGit2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 export function ScanNotificationContainer() {
   const dispatch = useAppDispatch();

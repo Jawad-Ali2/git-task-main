@@ -10,8 +10,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import LandingHeader from '@/components/landing-header';
-import LandingFooter from '@/components/landing-footer';
+import LandingHeader from '@/components/landing/header';
+import LandingFooter from '@/components/landing/footer';
 
 export default function PricingPage() {
   const pricingPlans = [

@@ -1,16 +1,16 @@
 "use client";
 
-import { NavMain } from "@/components/nav-main";
-import { NavUser } from "@/components/nav-user";
+import { NavMain } from "@/components/dashboard/sidebar/nav-main";
+import { NavUser } from "@/components/dashboard/sidebar/nav-user";
 import { SidebarHeader, SidebarContent, SidebarFooter, Sidebar } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/authHook";
-import { Bot, Folder, FolderGit2, FolderLock, LayoutDashboard, ListTodo } from "lucide-react";
+import { Bot, Folder, FolderGit2, FolderLock, LayoutDashboard, ListTodo, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { NavProjects } from "./nav-projects";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchRepositories, selectRepositories, selectRepositoriesLoading } from "@/redux/repositoriesSlice";
-import { useEffect } from "react";
-import { NotificationCenter } from "@/components/NotificationCenter";
+import { useEffect, useState, useMemo } from "react";
+import { NotificationCenter } from "@/components/dashboard";
 
 const mainMenuItems = [
   {
@@ -44,19 +44,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const dispatch = useAppDispatch();
   const repositories = useAppSelector(selectRepositories);
   const repositoriesLoading = useAppSelector(selectRepositoriesLoading);
+  const [hasFetchedRepos, setHasFetchedRepos] = useState(false);
 
+  // Defer repository fetching slightly to prioritize initial render
   useEffect(() => {
-    if (user) {
-      dispatch(fetchRepositories());
+    if (user && !hasFetchedRepos) {
+      // Use setTimeout to defer this until after initial render
+      // const timer = setTimeout(() => {
+        dispatch(fetchRepositories());
+        setHasFetchedRepos(true);
+      // }, 10);
+      
+      // return () => clearTimeout(timer);s
     }
-  }, [user, dispatch]);
+  }, [user, dispatch, hasFetchedRepos]);
 
-  const projects = repositories.map(repo => ({
-    name: repo.name,
-    url: `/dashboard/repositories/${repo.id}/tasks`,
-    icon: repo.private ? FolderLock : Folder,
-    id: repo.id,
-  }));
+  // Memoize projects to avoid unnecessary re-renders
+  const projects = useMemo(() => {
+    return repositories.map(repo => ({
+      name: repo.name,
+      url: `/dashboard/repositories/${repo.id}/tasks`,
+      icon: repo.private ? FolderLock : Folder,
+      id: repo.id,
+    }));
+  }, [repositories]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -82,9 +93,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={mainMenuItems} />
-        {!repositoriesLoading && projects.length > 0 && (
+        {repositoriesLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : projects.length > 0 ? (
           <NavProjects projects={projects} />
-        )}
+        ) : null}
       </SidebarContent>
       <SidebarFooter>
         {user && (

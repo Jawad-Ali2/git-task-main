@@ -1,12 +1,9 @@
 import { Code, FileText, User, ExternalLink, ChartNoAxesCombined } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TypeBadge } from '@/components/type-badge';
-import { PriorityBadge } from '@/components/priority-badge';
-import { StatusBadge } from '@/components/status-badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Image from 'next/image';
+import { PriorityBadge, StatusBadge, TypeBadge } from '../badges';
 
 interface Task {
   id: string;

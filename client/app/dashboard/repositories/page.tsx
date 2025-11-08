@@ -5,18 +5,13 @@ import { Plus, FolderGit2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/authHook';
 import axiosInstance from '@/lib/axios';
-import { RepoTable } from '@/components/data-table';
-import { AddRepositoryModal } from '@/components/add-repository-modal';
-import { useAppDispatch } from '@/redux/hooks';
-import { addNotification } from '@/redux/scanNotificationSlice';
+import { AddRepositoryModal, RepoTable } from '@/components/dashboard';
 
 export default function RepositoriesPage() {
   const { user } = useAuth();
   const [repositories, setRepositories] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedRepo, setSelectedRepo] = useState<{ id: string; name: string } | null>(null);
-  const dispatch = useAppDispatch();
 
   const fetchRepositories = async () => {
     setLoading(true);

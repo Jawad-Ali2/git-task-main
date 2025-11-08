@@ -8,14 +8,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import axiosInstance from '@/lib/axios';
 import { useAppSelector } from '@/redux/hooks';
 import { selectRepositories } from '@/redux/repositoriesSlice';
-import { TaskCodeSnippetModal } from '@/components/task-code-snippet-modal';
-import { StatsCard } from '@/components/stats-card';
-import { PageHeader } from '@/components/page-header';
-import { TaskFilters } from '@/components/task-filters';
-import { TaskCard } from '@/components/task-card';
-import { EmptyState, LoadingState } from '@/components/empty-state';
 import { useTaskFilters } from '@/hooks/useTaskFilters';
 import { useTaskActions } from '@/hooks/useTaskActions';
+import { EmptyState, LoadingState, PageHeader } from '@/components/common';
+import { TaskCard, TaskCodeSnippetModal, TaskFilters, StatsCard } from '@/components/dashboard';
+
 
 interface Task {
     id: string;

@@ -4,12 +4,9 @@ import { useEffect, useState } from 'react';
 import { Code } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import axiosInstance from '@/lib/axios';
-import { TaskCodeSnippetModal } from '@/components/task-code-snippet-modal';
-import { PageHeader } from '@/components/page-header';
-import { TaskFilters } from '@/components/task-filters';
-import { TaskCard } from '@/components/task-card';
-import { EmptyState, LoadingState } from '@/components/empty-state';
 import { useTaskFilters } from '@/hooks/useTaskFilters';
+import { EmptyState, LoadingState, PageHeader } from '@/components/common';
+import { TaskCard, TaskCodeSnippetModal, TaskFilters } from '@/components/dashboard';
 
 interface Task {
   id: string;

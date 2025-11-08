@@ -35,7 +35,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import Link from "next/link"
-import { Card } from "./ui/card"
+import { Card } from "@/components/ui/card"
 
 export type Repository = {
   id: string
