@@ -28,6 +28,16 @@ interface Task {
   authorAvatar?: string;
   codeSnippet?: string;
   context?: string;
+  // Commit tracking fields
+  addedBy?: string;
+  addedAt?: string;
+  addedInCommit?: string;
+  completedBy?: string;
+  completedAt?: string;
+  completedInCommit?: string;
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
+  lastModifiedInCommit?: string;
 }
 
 export default function TasksPage() {

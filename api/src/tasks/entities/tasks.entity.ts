@@ -33,4 +33,32 @@ export class Task {
 
   @Column({ type: 'float', nullable: true })
   debt_score: number;
+
+  // Commit tracking fields
+  @Column({ type: 'varchar', nullable: true })
+  addedBy: string; // GitHub username who added this task
+
+  @Column({ type: 'timestamp', nullable: true })
+  addedAt: Date; // When the task was added
+
+  @Column({ type: 'varchar', nullable: true })
+  addedInCommit: string; // SHA of commit that added this task
+
+  @Column({ type: 'varchar', nullable: true })
+  completedBy: string; // GitHub username who completed/removed this task
+
+  @Column({ type: 'timestamp', nullable: true })
+  completedAt: Date; // When the task was completed
+
+  @Column({ type: 'varchar', nullable: true })
+  completedInCommit: string; // SHA of commit that removed this task
+
+  @Column({ type: 'varchar', nullable: true })
+  lastModifiedBy: string; // Last person to modify this task's comment
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastModifiedAt: Date; // When the task comment was last modified
+
+  @Column({ type: 'varchar', nullable: true })
+  lastModifiedInCommit: string; // SHA of commit that last modified this task
 }
