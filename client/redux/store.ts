@@ -4,6 +4,7 @@ import scanNotificationReducer from './scanNotificationSlice';
 import dashboardReducer from './dashboardSlice';
 import tasksReducer from './tasksSlice';
 import repositoriesReducer from './repositoriesSlice';
+import integrationsReducer from './integrationsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     dashboard: dashboardReducer,
     tasks: tasksReducer,
     repositories: repositoriesReducer,
+    integrations: integrationsReducer,
   },
 });
 

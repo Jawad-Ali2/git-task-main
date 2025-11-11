@@ -13,7 +13,9 @@
     "install:client": "cd client && npm install",
     "build": "npm run build:api && npm run build:client",
     "build:api": "cd api && npm run build",
-    "build:client": "cd client && npm run build"
+    "build:client": "cd client && npm run build",
+    "heroku-postbuild": "cd api && npm install && npm run build",
+    "start": "cd api && npm run start:prod"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

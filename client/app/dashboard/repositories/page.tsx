@@ -21,8 +21,28 @@ export default function RepositoriesPage() {
   const fetchRepositories = async () => {
     setLoading(true);
     try {
-      const response = await axiosInstance.get('/repositories');
-      setRepositories(response.data || []);
+      const [reposResponse, integrationsResponse] = await Promise.all([
+        axiosInstance.get('/repositories'),
+        axiosInstance.get('/integrations?provider=trello'),
+      ]);
+      
+      const repos = reposResponse.data || [];
+      const integrations = integrationsResponse.data || [];
+      
+      // Map integrations to repositories
+      const reposWithIntegrations = repos.map((repo: any) => {
+        const integration = integrations.find((int: any) => int.repository?.id === repo.id);
+        return {
+          ...repo,
+          trelloIntegration: integration ? {
+            id: integration.id,
+            status: integration.status,
+            boardName: integration.config?.boardName,
+          } : null,
+        };
+      });
+      
+      setRepositories(reposWithIntegrations);
     } catch (error) {
       console.error('Failed to fetch repositories:', error);
       alert('Failed to fetch repositories');

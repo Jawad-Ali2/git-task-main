@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository as RepoEntity } from '../repositories/entities/repository.entity';
 import { Repository, DataSource } from 'typeorm';
@@ -7,6 +7,7 @@ import Redis from 'ioredis';
 import { Octokit } from '@octokit/rest';
 import { NotificationsService, NotificationType } from '@/notifications/notifications.service';
 import { AiService } from '@/ai/ai.service';
+import type { IntegrationsService } from '@/integrations/services/integrations.service';
 
 interface ScanJob {
     repoId: string;
@@ -56,8 +57,30 @@ export class TasksService {
         private readonly aiService: AiService,
 
         private readonly dataSource: DataSource,
+
+        @Optional()
+        @Inject(forwardRef(() => 'IntegrationsService'))
+        private readonly integrationsService?: IntegrationsService,
     ) {
         this.startWorker();
+    }
+
+    /**
+     * Auto-sync newly created task to Trello if integration is enabled
+     */
+    private async autoSyncTaskToTrello(task: Task): Promise<void> {
+        if (!this.integrationsService) {
+            return; // Integration service not available (avoid circular dependency issues)
+        }
+
+        try {
+            // Call the integration service to sync the task
+            await this.integrationsService.autoSyncNewTask(task.id, task.repository.user?.id);
+            this.logger.log(`✨ Auto-synced new task ${task.id} to Trello`);
+        } catch (error) {
+            this.logger.warn(`Failed to auto-sync task to Trello: ${error.message}`);
+            // Don't throw - auto-sync is best-effort
+        }
     }
 
     // ==================== Security & Validation Helpers ====================
@@ -1014,11 +1037,16 @@ export class TasksService {
                 addedAt: this.validateTimestamp(commit.timestamp),
                 addedInCommit: commit.id,
             });
-            await taskRepo.save(newTask);
+            const savedTask = await taskRepo.save(newTask);
+            
+            // ✅ Auto-sync to Trello if enabled (async, non-blocking)
+            this.autoSyncTaskToTrello(savedTask).catch(err => {
+                this.logger.warn(`Auto-sync failed for task ${savedTask.id}: ${err.message}`);
+            });
             
             // ✅ Track for AI analysis (store surrounding code temporarily)
-            (newTask as any).surroundingCode = currentTask.surroundingCode;
-            tasksNeedingAI.push(newTask);
+            (savedTask as any).surroundingCode = currentTask.surroundingCode;
+            tasksNeedingAI.push(savedTask);
             
             added++;
             details.added.push({

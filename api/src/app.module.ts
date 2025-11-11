@@ -15,6 +15,8 @@ import { TasksController } from './tasks/tasks.controller';
 import { TasksModule } from './tasks/tasks.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { IntegrationsModule } from './integrations/integrations.module';
+import { Integration } from './integrations/entities/integration.entity';
 
 @Module({
   imports: [
@@ -27,7 +29,7 @@ import { NotificationsModule } from './notifications/notifications.module';
       username: process.env.DATABASE_USER,
       password: process.env.DATABASE_PASSWORD,
       database: process.env.DATABASE_NAME,
-      entities: [User, Repository, Task],
+      entities: [User, Repository, Task, Integration],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
@@ -39,7 +41,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     RepositoriesModule,
     TasksModule,
     WebhooksModule,
-    NotificationsModule
+    NotificationsModule,
+    IntegrationsModule
   ],
   controllers: [AppController, RedisController],
   providers: [AppService],

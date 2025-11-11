@@ -113,6 +113,20 @@ export class RepositoriesController {
         return repos;
     }
 
+    @Get(':repoId')
+    @UseGuards(AuthGuard('jwt'))
+    @ApiCookieAuth('access_token')
+    @ApiOperation({ summary: 'Get a single repository by ID' })
+    @ApiParam({ name: 'repoId', description: 'Repository UUID' })
+    @ApiResponse({ status: 200, description: 'Returns repository details' })
+    @ApiResponse({ status: 404, description: 'Repository not found' })
+    @ApiResponse({ status: 401, description: 'Unauthorized' })
+    async getRepository(@Req() req: Request, @Param('repoId') repoId: string) {
+        const user = (req as any).user;
+        const repo = await this.reposService.getRepositoryById(user.userId, repoId);
+        return repo;
+    }
+
     @Delete(':repoId')
     @UseGuards(AuthGuard('jwt'))
     @ApiCookieAuth('access_token')
