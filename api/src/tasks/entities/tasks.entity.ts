@@ -61,4 +61,20 @@ export class Task {
 
   @Column({ type: 'varchar', nullable: true })
   lastModifiedInCommit: string; // SHA of commit that last modified this task
+
+  // Trello integration fields
+  @Column({ type: 'varchar', nullable: true })
+  trelloCardId?: string; // Trello card ID
+
+  @Column({ type: 'varchar', nullable: true })
+  trelloCardUrl?: string; // Direct URL to Trello card
+
+  @Column({ type: 'varchar', nullable: true, default: 'pending' })
+  trelloSyncStatus?: string; // 'pending', 'synced', 'error', 'disabled'
+
+  @Column({ type: 'timestamp', nullable: true })
+  trelloLastSyncedAt?: Date; // When was this task last synced with Trello
+
+  @Column({ type: 'text', nullable: true })
+  trelloSyncError?: string; // Store last sync error if any
 }

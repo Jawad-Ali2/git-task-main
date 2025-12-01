@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiCookieAuth } from '@nestjs/swagger';
 import { TasksService, ScanStatus } from './tasks.service';
@@ -6,17 +6,22 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Task } from './entities/tasks.entity';
 import { Repository } from 'typeorm';
 import { Request } from 'express';
+import type { IntegrationsService } from '../integrations/services/integrations.service';
 
 @ApiTags('tasks')
 @Controller('tasks')
 @UseGuards(AuthGuard('jwt'))
 @ApiCookieAuth('access_token')
 export class TasksController {
+    private readonly logger = new Logger(TasksController.name);
 
     constructor(
         private readonly tasksService: TasksService,
         @InjectRepository(Task)
         private readonly taskRepo: Repository<Task>,
+        @Optional()
+        @Inject(forwardRef(() => 'IntegrationsService'))
+        private readonly integrationsService?: IntegrationsService,
     ) { }
 
 
@@ -129,16 +134,47 @@ export class TasksController {
     @ApiResponse({ status: 200, description: 'Task status updated' })
     async updateTaskStatus(
         @Param('taskId') taskId: string,
-        @Body() body: { status: 'pending' | 'in-progress' | 'completed' }
+        @Body() body: { status: 'pending' | 'in-progress' | 'completed' },
+        @Req() req: Request
     ): Promise<Task> {
-        const task = await this.taskRepo.findOne({ where: { id: taskId } });
+        const user = (req as any).user;
+        const task = await this.taskRepo.findOne({ 
+            where: { id: taskId },
+            relations: ['repository', 'repository.user']
+        });
 
         if (!task) {
             throw new Error('Task not found');
         }
 
-        task.status = body.status;
-        return await this.taskRepo.save(task);
+        const oldStatus = task.status;
+        
+        // Map status values (frontend uses different names)
+        const statusMap: Record<string, string> = {
+            'pending': 'open',
+            'in-progress': 'in-progress',
+            'completed': 'done'
+        };
+        
+        task.status = statusMap[body.status] || body.status;
+        const updatedTask = await this.taskRepo.save(task);
+
+        // ✅ Auto-sync to Trello if status changed and card exists
+        if (oldStatus !== task.status && task.trelloCardId && this.integrationsService) {
+            try {
+                await this.integrationsService.syncTaskToTrello(taskId, user.userId);
+                this.logger.log(
+                    `✅ Auto-synced task ${taskId} status change (${oldStatus} → ${task.status}) to Trello`
+                );
+            } catch (error) {
+                this.logger.warn(
+                    `⚠️  Failed to auto-sync task ${taskId} to Trello: ${error.message}`
+                );
+                // Don't fail the status update if Trello sync fails
+            }
+        }
+
+        return updatedTask;
     }
 
     /**

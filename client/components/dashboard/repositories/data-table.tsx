@@ -13,7 +13,7 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Trash2, Search } from "lucide-react"
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Trash2, Search, Plug, Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/table"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 
 export type Repository = {
   id: string
@@ -47,6 +48,11 @@ export type Repository = {
   debt_score: number | null
   isScanning?: boolean
   isPaused?: boolean
+  trelloIntegration?: {
+    id: string
+    status: string
+    boardName?: string
+  } | null
 }
 
 interface DataTableDemoProps {
@@ -62,7 +68,7 @@ export const getColumns = (
       header: ({ column }) => {
         return (
           <div
-            className="flex items-center gap-1"
+            className="flex items-center gap-1 cursor-pointer"
             onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           >
             Repository Name
@@ -70,7 +76,17 @@ export const getColumns = (
           </div>
         )
       },
-      cell: ({ row }) => <div className="font-medium">{row.getValue("name")}</div>,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <span className="font-medium">{row.getValue("name")}</span>
+          {row.original.trelloIntegration && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              <Plug className="h-3 w-3" />
+              Trello
+            </Badge>
+          )}
+        </div>
+      ),
     },
     {
       accessorKey: "private",
@@ -117,6 +133,12 @@ export const getColumns = (
               {onDeleteRepository && (
                 <>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href={`/dashboard/repositories/${repository.id}/settings`}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Repository Settings
+                    </Link>
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={async () => {
                       if (confirm(`Are you sure you want to delete ${repository.name}?`)) {

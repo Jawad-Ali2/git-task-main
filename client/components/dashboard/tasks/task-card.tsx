@@ -13,6 +13,7 @@ interface Task {
   lineNumber: number;
   priority: string;
   status: string;
+  debt_score?: number;
   repository: {
     id: string;
     name: string;
@@ -22,12 +23,17 @@ interface Task {
   authorAvatar?: string;
   codeSnippet?: string;
   context?: string;
+  trelloCardId?: string;
+  trelloCardUrl?: string;
+  trelloSyncStatus?: string;
+  trelloLastSyncedAt?: string;
 }
 
 interface TaskCardProps {
   task: Task;
   onViewCode?: (task: Task) => void;
   onCreateCard?: (task: Task) => void;
+  onSyncToTrello?: (task: Task) => void;
   onUpdateStatus?: (taskId: string, status: 'pending' | 'in-progress' | 'completed') => void;
   onUpdatePriority?: (taskId: string, priority: 'low' | 'medium' | 'high') => void;
   showRepository?: boolean;
@@ -41,6 +47,7 @@ export function TaskCard({
   task,
   onViewCode,
   onCreateCard,
+  onSyncToTrello,
   onUpdateStatus,
   onUpdatePriority,
   showRepository = false,
@@ -74,6 +81,19 @@ export function TaskCard({
                 {showRepository && (
                   <Badge variant="secondary">{task.repository.name}</Badge>
                 )}
+                {task.trelloCardUrl && (
+                  <a
+                    href={task.trelloCardUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-blue-500 hover:text-blue-600"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.656 1.343 3 3 3h18c1.656 0 3-1.344 3-3V3c0-1.657-1.344-3-3-3zM10.44 18.18c0 .795-.645 1.44-1.44 1.44H4.56c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.645-1.44 1.44-1.44H9c.795 0 1.44.645 1.44 1.44v13.62zm10.44-6c0 .794-.645 1.44-1.44 1.44H15c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.646-1.44 1.44-1.44h4.44c.795 0 1.44.645 1.44 1.44v7.62z"/>
+                    </svg>
+                    <span>View in Trello</span>
+                  </a>
+                )}
               </div>
 
               {task.author && (
@@ -98,6 +118,19 @@ export function TaskCard({
                   >
                     <Code className="h-4 w-4 mr-2" />
                     View Code
+                  </Button>
+                )}
+                {onSyncToTrello && !task.trelloCardId && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onSyncToTrello(task)}
+                    className="text-blue-500 hover:text-blue-600 border-blue-500 hover:border-blue-600"
+                  >
+                    <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.656 1.343 3 3 3h18c1.656 0 3-1.344 3-3V3c0-1.657-1.344-3-3-3zM10.44 18.18c0 .795-.645 1.44-1.44 1.44H4.56c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.645-1.44 1.44-1.44H9c.795 0 1.44.645 1.44 1.44v13.62zm10.44-6c0 .794-.645 1.44-1.44 1.44H15c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.646-1.44 1.44-1.44h4.44c.795 0 1.44.645 1.44 1.44v7.62z"/>
+                    </svg>
+                    Sync to Trello
                   </Button>
                 )}
                 {onCreateCard && (
@@ -152,7 +185,7 @@ export function TaskCard({
               </div>
               <div className="flex items-center gap-1">
                 <ChartNoAxesCombined className="h-4 w-4" />
-                <span>Debt: {task.lineNumber}</span>
+                <span>Debt: {task.debt_score}</span>
               </div>
             </div>
           </div>
@@ -227,6 +260,31 @@ export function TaskCard({
                   title="View Code"
                 >
                   <Code className="h-4 w-4" />
+                </Button>
+              )}
+              {task.trelloCardUrl ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-blue-500 hover:text-blue-600"
+                  onClick={() => window.open(task.trelloCardUrl, '_blank')}
+                  title="View in Trello"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.656 1.343 3 3 3h18c1.656 0 3-1.344 3-3V3c0-1.657-1.344-3-3-3zM10.44 18.18c0 .795-.645 1.44-1.44 1.44H4.56c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.645-1.44 1.44-1.44H9c.795 0 1.44.645 1.44 1.44v13.62zm10.44-6c0 .794-.645 1.44-1.44 1.44H15c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.646-1.44 1.44-1.44h4.44c.795 0 1.44.645 1.44 1.44v7.62z"/>
+                  </svg>
+                </Button>
+              ) : onSyncToTrello && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-blue-500 hover:text-blue-600"
+                  onClick={() => onSyncToTrello(task)}
+                  title="Sync to Trello"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.656 1.343 3 3 3h18c1.656 0 3-1.344 3-3V3c0-1.657-1.344-3-3-3zM10.44 18.18c0 .795-.645 1.44-1.44 1.44H4.56c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.645-1.44 1.44-1.44H9c.795 0 1.44.645 1.44 1.44v13.62zm10.44-6c0 .794-.645 1.44-1.44 1.44H15c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.646-1.44 1.44-1.44h4.44c.795 0 1.44.645 1.44 1.44v7.62z"/>
+                  </svg>
                 </Button>
               )}
               {onCreateCard && (

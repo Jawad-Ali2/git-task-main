@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Github, Sparkles, TrendingUp, Zap, Users, BarChart } from 'lucide-react';
+import { ArrowRight, Github, Sparkles, TrendingUp, Zap, Users, BarChart, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import LandingHeader from '@/components/landing/header';
@@ -54,51 +54,161 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Features Section */}
       <section className="py-20 px-4">
         <div className="container mx-auto max-w-6xl">
-          <div className="grid md:grid-cols-3 gap-6">
-            {[
-              {
-                icon: Zap,
-                title: 'Automated Extraction',
-                description: 'Automatically scan your repositories and extract TODO, FIXME, and other comment markers in real-time.',
-              },
-              {
-                icon: Sparkles,
-                title: 'AI-Powered Insights',
-                description: 'Get intelligent summaries and prioritization suggestions powered by advanced AI analysis.',
-              },
-              {
-                icon: TrendingUp,
-                title: 'Technical Debt Tracking',
-                description: 'Visualize trends, track resolution times, and measure your technical debt over time.',
-              },
-              {
-                icon: Github,
-                title: 'GitHub Integration',
-                description: 'Seamlessly integrates with your GitHub workflow. Track TODOs across all your repositories.',
-              },
-              {
-                icon: Users,
-                title: 'Team Collaboration',
-                description: 'Assign tasks, track progress, and keep your entire team aligned on technical debt.',
-              },
-              {
-                icon: BarChart,
-                title: 'Advanced Analytics',
-                description: 'Comprehensive dashboards showing task distribution, resolution trends, and team productivity.',
-              },
-            ].map((feature, index) => (
-              <Card key={index} className="glass glass-hover shadow-none border-none">
-                <CardHeader>
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                    <feature.icon className="w-6 h-6 text-primary" />
+          {/* Grid Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-12 gap-4 auto-rows-[minmax(200px,auto)]">
+
+            {/* Large Feature - Automated Scanning */}
+            <Card className="md:col-span-6 lg:col-span-7 lg:row-span-2 rounded-2xl p-8 relative overflow-hidden group hover:shadow-md transition-all duration-300">
+              <div className="relative z-10">
+                <h3 className="text-3xl font-bold mb-4">Automated Repository Scanning</h3>
+                <p className="text-lg text-foreground mb-8 max-w-md">
+                  Connect your GitHub repositories and let AI automatically discover and categorize every TODO, FIXME, and HACK comment in seconds.
+                </p>
+              </div>
+              <div className="absolute bottom-0 right-0 w-80 h-80 bg-primary/5 rounded-tl-[100px] group-hover:scale-110 transition-transform duration-500">
+                <div className="absolute inset-8 rounded-tl-[80px] border-2 border-primary/20 flex items-center justify-center">
+                  <div className="space-y-3 w-full px-8">
+                    <div className="h-3 bg-primary/30 rounded-full w-3/4 group-hover:w-full transition-all duration-500"></div>
+                    <div className="h-3 bg-primary/20 rounded-full w-full"></div>
+                    <div className="h-3 bg-primary/30 rounded-full w-2/3 group-hover:w-5/6 transition-all duration-500"></div>
+                    <div className="h-3 bg-primary/20 rounded-full w-4/5 group-hover:w-full transition-all duration-500"></div>
                   </div>
-                  <CardTitle>{feature.title}</CardTitle>
-                  <CardDescription>{feature.description}</CardDescription>
-                </CardHeader>
-              </Card>
-            ))}
+                </div>
+              </div>
+            </Card>
+
+            {/* Medium Feature - AI Insights */}
+            <Card className="md:col-span-3 lg:col-span-5 bg-white rounded-2xl p-8 relative overflow-hidden group hover:shadow-md transition-all duration-300">
+              <div className="relative z-10">
+                <h3 className="text-2xl font-bold mb-3">AI-Powered Insights</h3>
+                <p className="text-foreground mb-4">
+                  Get intelligent summaries and smart prioritization for every task discovered in your codebase.
+                </p>
+                <div className="mt-6 space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <span>Smart categorization</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <span>Priority scoring</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <span>Context awareness</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Neural network visualization - bottom right corner */}
+              <div className="absolute bottom-4 right-4 w-24 h-24">
+                <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-purple-500"></div>
+                <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-purple-400"></div>
+                <div className="absolute bottom-4 left-4 w-2 h-2 rounded-full bg-purple-500"></div>
+                <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-purple-400"></div>
+                <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                  <line x1="20%" y1="20%" x2="70%" y2="40%" stroke="rgb(168, 85, 247)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
+                  <line x1="20%" y1="20%" x2="40%" y2="70%" stroke="rgb(168, 85, 247)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
+                  <line x1="70%" y1="40%" x2="80%" y2="80%" stroke="rgb(168, 85, 247)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
+                  <line x1="40%" y1="70%" x2="80%" y2="80%" stroke="rgb(168, 85, 247)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
+                </svg>
+              </div>
+            </Card>
+
+            {/* Medium Feature - Analytics */}
+            <Card className="md:col-span-3 lg:col-span-5 rounded-2xl p-8 relative overflow-hidden group hover:shadow-md transition-all duration-300">
+              <div className="relative z-10">
+                <h3 className="text-2xl font-bold mb-3">Advanced Analytics</h3>
+                <p className="text-foreground mb-6">
+                  Track technical debt trends, resolution times, and team productivity with beautiful dashboards.
+                </p>
+                <div className="flex gap-2 items-end h-24">
+                  <div className="flex-1 bg-green-500/20 rounded-t-lg h-3/4 group-hover:h-full transition-all duration-300"></div>
+                  <div className="flex-1 bg-green-500/30 rounded-t-lg h-2/3 group-hover:h-5/6 transition-all duration-300"></div>
+                  <div className="flex-1 bg-green-500/40 rounded-t-lg h-full"></div>
+                  <div className="flex-1 bg-green-500/30 rounded-t-lg h-1/2 group-hover:h-4/5 transition-all duration-300"></div>
+                  <div className="flex-1 bg-green-500/20 rounded-t-lg h-2/5 group-hover:h-3/5 transition-all duration-300"></div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Small Feature - GitHub Integration */}
+            <Card className="md:col-span-2 lg:col-span-4 bg-white rounded-2xl p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
+              <div className="relative z-10">
+                <h3 className="text-xl font-bold mb-2">GitHub Native</h3>
+                <p className="text-sm text-foreground">
+                  Seamlessly integrates with your existing workflow
+                </p>
+              </div>
+
+              {/* Git branch visualization - bottom right corner */}
+              <div className="absolute bottom-2 right-2 w-24 h-24">
+                <svg viewBox="0 0 100 100" className="w-full h-full">
+                  <circle cx="20" cy="20" r="8" fill="rgb(249, 115, 22)" />
+                  <circle cx="80" cy="20" r="8" fill="rgb(249, 115, 22)" />
+                  <circle cx="50" cy="80" r="8" fill="rgb(249, 115, 22)" />
+                  <line x1="20" y1="28" x2="50" y2="72" stroke="rgb(249, 115, 22)" strokeWidth="3" />
+                  <line x1="80" y1="28" x2="50" y2="72" stroke="rgb(249, 115, 22)" strokeWidth="3" />
+                </svg>
+              </div>
+            </Card>
+
+            {/* Small Feature - Team Collaboration */}
+            <Card className="md:col-span-2 lg:col-span-4 bg-white rounded-2xl p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
+              <div className="relative z-10">
+                <h3 className="text-xl font-bold mb-2">Team Sync</h3>
+                <p className="text-sm text-foreground">
+                  Collaborate and assign tasks across your entire team
+                </p>
+              </div>
+
+              {/* Three connected users visualization - centered */}
+              <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-end justify-center">
+                {/* User 1 - Left (smaller) */}
+                <div className="flex flex-col items-center group-hover:scale-110 transition-transform">
+                  <div className="w-5 h-5 rounded-full bg-gray-300 mb-1"></div>
+                  <div className="w-8 h-6 bg-green-500/30 rounded-t-full"></div>
+                </div>
+
+                {/* User 2 - Center (larger) */}
+                <div className="flex flex-col items-center group-hover:scale-110 transition-transform delay-75 z-10">
+                  <div className="w-6 h-6 rounded-full bg-gray-300 mb-1"></div>
+                  <div className="w-10 h-8 bg-green-400 rounded-t-full"></div>
+                </div>
+
+                {/* User 3 - Right (smaller) */}
+                <div className="flex flex-col items-center group-hover:scale-110 transition-transform delay-150">
+                  <div className="w-5 h-5 rounded-full bg-gray-300 mb-1"></div>
+                  <div className="w-8 h-6 bg-green-500/20 rounded-t-full"></div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Small Feature - Real-time Updates */}
+            <Card className="md:col-span-2 lg:col-span-4 rounded-2xl p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
+              {/* Pulse wave visualization */}
+              <div className="absolute bottom-4 right-0 w-full h-20 ">
+                <svg viewBox="0 0 200 50" className="w-full h-full" preserveAspectRatio="none">
+                  <polyline
+                    points="0,25 20,25 25,5 30,45 35,15 40,35 45,25 200,25"
+                    fill="none"
+                    strokeWidth="2"
+                    className="group-hover:stroke-green-800 transition-all duration-300 stroke-gray-300"
+                  />
+                </svg>
+              </div>
+
+              <div className="relative z-10">
+                <h3 className="text-xl font-bold mb-2">Real-time Tracking</h3>
+                <p className="text-sm text-foreground">
+                  Monitor progress and debt reduction in real-time
+                </p>
+              </div>
+            </Card>
+
           </div>
         </div>
       </section>

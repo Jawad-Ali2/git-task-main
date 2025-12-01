@@ -1,6 +1,6 @@
 'use client';
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Code, Copy, ExternalLink, User } from 'lucide-react';
@@ -14,6 +14,7 @@ interface Task {
   lineNumber: number;
   priority: string;
   status: string;
+  ai_summary: string;
   codeSnippet?: string;
   context?: string;
   author?: string;
@@ -39,17 +40,6 @@ export function TaskCodeSnippetModal({ open, onOpenChange, task }: TaskCodeSnipp
       setTimeout(() => setCopied(false), 2000);
     }
   };
-
-  // Dummy code snippet if not provided
-  const codeSnippet = task.codeSnippet || `// ${task.filePath}:${task.lineNumber}
-function calculateTotal(items) {
-  // ${task.type}: ${task.description}
-  let total = 0;
-  for (let item of items) {
-    total += item.price;
-  }
-  return total;
-}`;
 
   // Dummy context if not provided
   const context = task.context || `This task requires updating the ${task.filePath} file. The current implementation needs to be reviewed and improved according to the ${task.type} comment found at line ${task.lineNumber}.`;
@@ -108,7 +98,7 @@ function calculateTotal(items) {
           <div className="space-y-2">
             <h4 className="font-medium text-sm">What needs to be done?</h4>
             <div className="p-4 border rounded-lg bg-blue-500/5 border-blue-500/20">
-              <p className="text-sm text-foreground/90">{context}</p>
+              <p className="text-sm text-foreground/90">{task.ai_summary}</p>
             </div>
           </div>
 
@@ -128,7 +118,7 @@ function calculateTotal(items) {
             </div>
             <div className="relative">
               <pre className="p-4 border rounded-lg bg-black/90 text-green-400 overflow-x-auto text-xs font-mono">
-                <code>{codeSnippet}</code>
+                <code>{task.codeSnippet}</code>
               </pre>
             </div>
           </div>

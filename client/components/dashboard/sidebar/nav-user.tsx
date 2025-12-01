@@ -5,6 +5,7 @@ import {
   CreditCard,
   LogOut,
   Sparkles,
+  Plug,
 } from "lucide-react"
 
 import {
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/hooks/authHook"
 import Image from "next/image"
+import { useRouter } from "next/navigation"
 
 export function NavUser({
   user,
@@ -40,6 +42,7 @@ export function NavUser({
 }) {
   const { isMobile } = useSidebar()
   const { logout } = useAuth()
+  const router = useRouter()
 
   return (
     <SidebarMenu>
@@ -84,6 +87,10 @@ export function NavUser({
               <DropdownMenuItem>
                 <CreditCard />
                 Billing
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push('/dashboard/settings/integrations')} className="cursor-pointer">
+                <Plug />
+                Integrations
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Bell />

@@ -32,7 +32,8 @@ export class JWTStrategy extends PassportStrategy(Strategy, 'jwt') {
         }
 
         return {
-            userId: payload.sub,
+            id: payload.sub, // ✅ Changed from userId to id
+            userId: payload.sub, // Keep for backwards compatibility
             name: payload.name,
             avatarUrl: payload.avatarUrl,
             githubId: payload.githubId,

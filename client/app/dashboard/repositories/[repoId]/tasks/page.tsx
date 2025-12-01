@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Code, Play } from 'lucide-react';
+import { Code, Play, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import axiosInstance from '@/lib/axios';
@@ -10,6 +10,7 @@ import { useAppSelector } from '@/redux/hooks';
 import { selectRepositories } from '@/redux/repositoriesSlice';
 import { useTaskFilters } from '@/hooks/useTaskFilters';
 import { useTaskActions } from '@/hooks/useTaskActions';
+import { toast } from 'sonner';
 import { EmptyState, LoadingState, PageHeader } from '@/components/common';
 import { TaskCard, TaskCodeSnippetModal, TaskFilters, StatsCard } from '@/components/dashboard';
 
@@ -55,6 +56,8 @@ export default function RepositoryTasksPage() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+    const [hasTrelloIntegration, setHasTrelloIntegration] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [isCodeSnippetModalOpen, setIsCodeSnippetModalOpen] = useState(false);
 
@@ -75,7 +78,20 @@ export default function RepositoryTasksPage() {
 
     useEffect(() => {
         fetchTasks();
+        checkTrelloIntegration();
     }, [repoId]);
+
+    const checkTrelloIntegration = async () => {
+        try {
+            const response = await axiosInstance.get('/integrations?provider=trello');
+            const repoIntegration = response.data.find(
+                (int: any) => int.repository?.id === repoId && int.config?.boardId
+            );
+            setHasTrelloIntegration(!!repoIntegration);
+        } catch (error) {
+            console.error('Failed to check Trello integration:', error);
+        }
+    };
 
     const fetchTasks = async () => {
         setLoading(true);
@@ -124,6 +140,46 @@ export default function RepositoryTasksPage() {
         }
     };
 
+    const handleSyncToTrello = async () => {
+        if (!hasTrelloIntegration) {
+            toast.error('Trello is not configured for this repository');
+            return;
+        }
+
+        setSyncing(true);
+        try {
+            const response = await axiosInstance.post('/integrations/sync/repository', {
+                repositoryId: repoId,
+            });
+
+            const { synced, failed, total } = response.data;
+
+            if (failed === 0) {
+                toast.success(
+                    `Successfully synced ${synced} of ${total} task${total !== 1 ? 's' : ''} to Trello!`,
+                    {
+                        description: synced === 0 ? 'All tasks were already synced' : undefined,
+                    }
+                );
+            } else {
+                toast.warning(
+                    `Synced ${synced} task${synced !== 1 ? 's' : ''}, but ${failed} failed`,
+                    {
+                        description: `Total tasks: ${total}`,
+                    }
+                );
+            }
+
+            // Refresh tasks to update sync status
+            fetchTasks();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to sync tasks to Trello');
+            console.error('Sync error:', error);
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     const getDebtScoreColor = (score: number) => {
         if (score >= 81) return 'text-red-600 bg-red-500/10 border-red-500/20';
         if (score >= 61) return 'text-orange-600 bg-orange-500/10 border-orange-500/20';
@@ -162,19 +218,40 @@ export default function RepositoryTasksPage() {
                 title={currentRepo?.name || 'Repository'}
                 description="Tasks for this repository"
             >
-                <Button onClick={handleScanRepository} disabled={scanning}>
-                    {scanning ? (
-                        <>
-                            <Play className="h-4 w-4 mr-2 animate-spin" />
-                            Scanning...
-                        </>
-                    ) : (
-                        <>
-                            <Play className="h-4 w-4 mr-2" />
-                            Scan Repository
-                        </>
+                <div className="flex gap-2">
+                    {hasTrelloIntegration && (
+                        <Button
+                            variant="outline"
+                            onClick={handleSyncToTrello}
+                            disabled={syncing || tasks.length === 0}
+                        >
+                            {syncing ? (
+                                <>
+                                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                    Syncing...
+                                </>
+                            ) : (
+                                <>
+                                    <RefreshCw className="h-4 w-4 mr-2" />
+                                    Sync to Trello
+                                </>
+                            )}
+                        </Button>
                     )}
-                </Button>
+                    <Button onClick={handleScanRepository} disabled={scanning}>
+                        {scanning ? (
+                            <>
+                                <Play className="h-4 w-4 mr-2 animate-spin" />
+                                Scanning...
+                            </>
+                        ) : (
+                            <>
+                                <Play className="h-4 w-4 mr-2" />
+                                Scan Repository
+                            </>
+                        )}
+                    </Button>
+                </div>
             </PageHeader>
 
             {/* Stats Cards */}

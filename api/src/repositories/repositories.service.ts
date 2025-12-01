@@ -356,6 +356,21 @@ export class RepositoriesService {
     }
 
     /**
+     * Get a single repository by ID
+     */
+    async getRepositoryById(userId: string, repoId: string) {
+        const repo = await this.repoEntity.findOne({
+            where: { id: repoId, user: { id: userId } },
+        });
+
+        if (!repo) {
+            throw new Error('Repository not found or access denied');
+        }
+
+        return repo;
+    }
+
+    /**
      * Invalidate all cache entries for a user.
      */
     private async invalidateUserCache(userId: string) {
