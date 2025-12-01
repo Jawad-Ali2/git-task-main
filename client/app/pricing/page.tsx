@@ -146,7 +146,7 @@ export default function PricingPage() {
             {pricingPlans.map((plan, index) => (
               <Card 
                 key={index} 
-                className={`glass glass-hover relative flex flex-col ${
+                className={`relative flex flex-col ${
                   plan.popular 
                     ? 'border-primary shadow-lg md:scale-105' 
                     : 'border-none'
@@ -204,7 +204,7 @@ export default function PricingPage() {
         <div className="container mx-auto max-w-6xl">
           <div className="text-center mb-8 md:mb-12 px-4">
             <h2 className="text-3xl md:text-4xl font-bold mb-3 md:mb-4">Feature Comparison</h2>
-            <p className="text-base md:text-xl text-muted-foreground">
+            <p className="text-base md:text-xl">
               Compare all features across our plans
             </p>
           </div>

@@ -89,15 +89,15 @@ export default function Home() {
                 </p>
                 <div className="mt-6 space-y-2">
                   <div className="flex items-center gap-2 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-green-700"></div>
                     <span>Smart categorization</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-green-700"></div>
                     <span>Priority scoring</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
-                    <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                    <div className="w-2 h-2 rounded-full bg-green-700"></div>
                     <span>Context awareness</span>
                   </div>
                 </div>
@@ -105,15 +105,15 @@ export default function Home() {
 
               {/* Neural network visualization - bottom right corner */}
               <div className="absolute bottom-4 right-4 w-24 h-24">
-                <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-purple-500"></div>
-                <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-purple-400"></div>
-                <div className="absolute bottom-4 left-4 w-2 h-2 rounded-full bg-purple-500"></div>
-                <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-purple-400"></div>
+                <div className="absolute top-2 left-2 w-3 h-3 rounded-full bg-green-500"></div>
+                <div className="absolute top-6 right-6 w-2 h-2 rounded-full bg-green-600"></div>
+                <div className="absolute bottom-4 left-6 w-2 h-2 rounded-full bg-green-500"></div>
+                <div className="absolute bottom-2 right-2 w-3 h-3 rounded-full bg-green-700"></div>
                 <svg className="absolute inset-0 w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                  <line x1="20%" y1="20%" x2="70%" y2="40%" stroke="rgb(168, 85, 247)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
-                  <line x1="20%" y1="20%" x2="40%" y2="70%" stroke="rgb(168, 85, 247)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
-                  <line x1="70%" y1="40%" x2="80%" y2="80%" stroke="rgb(168, 85, 247)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
-                  <line x1="40%" y1="70%" x2="80%" y2="80%" stroke="rgb(168, 85, 247)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
+                  <line x1="20%" y1="20%" x2="70%" y2="40%" stroke="rgb(1, 102, 48)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
+                  <line x1="20%" y1="20%" x2="40%" y2="70%" stroke="rgb(1, 102, 48)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
+                  <line x1="70%" y1="40%" x2="80%" y2="80%" stroke="rgb(1, 102, 48)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
+                  <line x1="40%" y1="70%" x2="80%" y2="80%" stroke="rgb(1, 102, 48)" strokeWidth="1" className="group-hover:stroke-2 transition-all" />
                 </svg>
               </div>
             </Card>
@@ -147,11 +147,19 @@ export default function Home() {
               {/* Git branch visualization - bottom right corner */}
               <div className="absolute bottom-2 right-2 w-24 h-24">
                 <svg viewBox="0 0 100 100" className="w-full h-full">
-                  <circle cx="20" cy="20" r="8" fill="rgb(249, 115, 22)" />
-                  <circle cx="80" cy="20" r="8" fill="rgb(249, 115, 22)" />
-                  <circle cx="50" cy="80" r="8" fill="rgb(249, 115, 22)" />
-                  <line x1="20" y1="28" x2="50" y2="72" stroke="rgb(249, 115, 22)" strokeWidth="3" />
-                  <line x1="80" y1="28" x2="50" y2="72" stroke="rgb(249, 115, 22)" strokeWidth="3" />
+                  {/* Top left node */}
+                  <circle cx="20" cy="20" r="8" fill="rgb(1, 150, 48)" />
+                  {/* Top right node */}
+                  <circle cx="80" cy="20" r="8" fill="rgb(1, 150, 48)" />
+                  {/* Bottom node */}
+                  <circle cx="20" cy="80" r="8" fill="rgb(1, 150, 48)" />
+
+                  {/* Vertical line from top left to middle */}
+                  <line x1="20" y1="28" x2="20" y2="50" stroke="rgb(1, 150, 48)" strokeWidth="3" />
+                  {/* Branch line from top right to middle */}
+                  <path d="M 80 28 C 80 50, 40 50, 20 50" stroke="rgb(1, 150, 48)" strokeWidth="3" fill="none" />
+                  {/* Vertical line from middle to bottom */}
+                  <line x1="20" y1="50" x2="20" y2="72" stroke="rgb(1, 150, 48)" strokeWidth="3" />
                 </svg>
               </div>
             </Card>
