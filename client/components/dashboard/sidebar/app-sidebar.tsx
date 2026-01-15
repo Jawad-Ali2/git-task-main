@@ -9,7 +9,7 @@ import Image from "next/image";
 import { NavProjects } from "./nav-projects";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchRepositories, selectRepositories, selectRepositoriesLoading } from "@/redux/repositoriesSlice";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { NotificationCenter } from "@/components/dashboard";
 
 const mainMenuItems = [
@@ -44,20 +44,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const dispatch = useAppDispatch();
   const repositories = useAppSelector(selectRepositories);
   const repositoriesLoading = useAppSelector(selectRepositoriesLoading);
-  const [hasFetchedRepos, setHasFetchedRepos] = useState(false);
+  const hasFetchedRepos = useRef(false);
 
   // Defer repository fetching slightly to prioritize initial render
   useEffect(() => {
-    if (user && !hasFetchedRepos) {
+    if (user && !hasFetchedRepos.current) {
       // Use setTimeout to defer this until after initial render
       // const timer = setTimeout(() => {
         dispatch(fetchRepositories());
-        setHasFetchedRepos(true);
+        hasFetchedRepos.current = true;
       // }, 10);
       
       // return () => clearTimeout(timer);s
     }
-  }, [user, dispatch, hasFetchedRepos]);
+  }, [user, dispatch]);
 
   // Memoize projects to avoid unnecessary re-renders
   const projects = useMemo(() => {

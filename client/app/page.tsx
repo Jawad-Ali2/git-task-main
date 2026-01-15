@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { ArrowRight, Github, Sparkles, TrendingUp, Zap, Users, BarChart, UserRound } from 'lucide-react';
+import { ArrowRight, Github, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import LandingHeader from '@/components/landing/header';
 import LandingFooter from '@/components/landing/footer';
 import { Squares } from '@/components/landing';
