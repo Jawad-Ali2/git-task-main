@@ -35,7 +35,7 @@ export default function PricingPage() {
     {
       name: 'Team Plan',
       subtitle: 'For Growing Teams',
-      price: '$15',
+      price: '$5',
       period: '/developer/month',
       description: 'Everything you need to manage team productivity',
       features: [
