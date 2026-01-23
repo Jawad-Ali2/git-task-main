@@ -1,14 +1,27 @@
-import { Injectable, Logger, HttpException, HttpStatus, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus, NotFoundException, Inject, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository as TypeOrmRepository } from 'typeorm';
+import { Repository as TypeOrmRepository, DataSource } from 'typeorm';
 import { Integration } from '../entities/integration.entity';
 import { Task } from '../../tasks/entities/tasks.entity';
 import { Repository } from '../../repositories/entities/repository.entity';
 import { TrelloApiService } from './trello-api.service';
+import { TrelloWebhookSecurityService } from './trello-webhook-security.service';
 import { CreateIntegrationDto, UpdateIntegrationDto, SyncTasksDto } from '../dto/integration.dto';
+import { NotificationsService, NotificationType } from '../../notifications/notifications.service';
+import Redis from 'ioredis';
+
+export interface WebhookContext {
+  userId: string;
+  integrationId: string;
+  taskId?: string;
+  cardId: string;
+  actionType: string;
+  timestamp: Date;
+  webhookId?: string;
+}
 
 @Injectable()
-export class IntegrationsService {
+export class IntegrationsService implements OnModuleInit {
   private readonly logger = new Logger(IntegrationsService.name);
 
   constructor(
@@ -19,7 +32,34 @@ export class IntegrationsService {
     @InjectRepository(Repository)
     private repositoryRepository: TypeOrmRepository<Repository>,
     private trelloApiService: TrelloApiService,
+    private webhookSecurityService: TrelloWebhookSecurityService,
+    private notificationsService: NotificationsService,
+    @Inject('REDIS_CLIENT')
+    private readonly redis: Redis,
+    private dataSource: DataSource,
   ) {}
+
+  /**
+   * Initialize retry processor subscription
+   */
+  async onModuleInit() {
+    // Subscribe to retry events
+    const subscriber = this.redis.duplicate();
+    await subscriber.subscribe('trello:webhook:retry');
+    
+    subscriber.on('message', async (channel, message) => {
+      if (channel === 'trello:webhook:retry') {
+        try {
+          const { payload, retryCount } = JSON.parse(message);
+          await this.processWebhookWithRetry(payload, retryCount);
+        } catch (error) {
+          this.logger.error(`Failed to process retry: ${error.message}`);
+        }
+      }
+    });
+
+    this.logger.log('Webhook retry processor initialized');
+  }
 
   /**
    * Create a new integration
@@ -454,169 +494,387 @@ export class IntegrationsService {
   }
 
   /**
-   * Handle Trello webhook events (full bi-directional sync)
+   * Handle Trello webhook events with full security and reliability
    */
-  async handleTrelloWebhook(webhookData: any): Promise<void> {
+  async handleTrelloWebhook(
+    webhookData: any,
+    rawBody?: string,
+    signatureHeader?: string,
+    callbackUrl?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const startTime = Date.now();
+    let context: Partial<WebhookContext> = {
+      actionType: webhookData.action?.type,
+      cardId: webhookData.action?.data?.card?.id,
+      timestamp: new Date(),
+    };
+
     try {
+      // 1. Security validation (if raw body provided)
+      if (rawBody && callbackUrl) {
+        const validation = await this.webhookSecurityService.validateWebhook(
+          rawBody,
+          signatureHeader,
+          callbackUrl,
+          webhookData,
+        );
+
+        if (!validation.isValid) {
+          this.logWebhook('rejected', context, validation.error || 'Validation failed');
+          
+          if (validation.isDuplicate) {
+            return { success: true, message: 'Duplicate webhook (already processed)' };
+          }
+          if (validation.isStale) {
+            return { success: false, message: 'Stale webhook rejected' };
+          }
+          return { success: false, message: validation.error || 'Validation failed' };
+        }
+
+        context.webhookId = validation.webhookId;
+      }
+
       const action = webhookData.action;
       
       if (!action) {
-        this.logger.warn('Webhook data missing action');
-        return;
+        this.logWebhook('skipped', context, 'Missing action data');
+        return { success: true, message: 'No action to process' };
       }
 
       const actionType = action.type;
       const card = action.data?.card;
+      const boardId = webhookData.model?.id || action.data?.board?.id;
       
       if (!card?.id) {
-        this.logger.warn(`Webhook action ${actionType} has no card data`);
-        return;
+        this.logWebhook('skipped', context, 'No card data');
+        return { success: true, message: 'No card to process' };
       }
 
-      this.logger.log(`Trello webhook: ${actionType} for card ${card.id}`);
+      context.cardId = card.id;
+      context.actionType = actionType;
 
-      switch (actionType) {
-        case 'updateCard':
-          await this.handleCardUpdate(action);
-          break;
-        case 'deleteCard':
-          await this.handleCardDelete(card.id);
-          break;
-        case 'updateCheckItemStateOnCard':
-          await this.handleChecklistUpdate(action);
-          break;
-        case 'addMemberToCard':
-        case 'removeMemberFromCard':
-          await this.handleMemberChange(action);
-          break;
-        default:
-          this.logger.debug(`Unhandled webhook action: ${actionType}`);
+      // 2. Find integration by board ID
+      const integration = await this.findIntegrationByBoardId(boardId);
+      
+      if (!integration) {
+        this.logWebhook('skipped', context, 'No integration for board');
+        return { success: false, message: 'No integration found for this board' };
       }
+
+      // 3. Check if integration is still active
+      if (integration.status !== 'active') {
+        this.logWebhook('skipped', context, `Integration status: ${integration.status}`);
+        return { success: false, message: 'Integration is not active' };
+      }
+
+      context.integrationId = integration.id;
+      context.userId = integration.user?.id;
+
+      // 4. Acquire distributed lock for the card
+      const lockAcquired = await this.webhookSecurityService.acquireLock(card.id);
+      if (!lockAcquired) {
+        this.logWebhook('deferred', context, 'Card locked by another process');
+        // Queue for retry instead of failing
+        await this.webhookSecurityService.queueForRetry(
+          webhookData,
+          'Card locked by concurrent operation',
+          0,
+        );
+        return { success: true, message: 'Queued for processing (card locked)' };
+      }
+
+      try {
+        // 5. Process the webhook action
+        switch (actionType) {
+          case 'updateCard':
+            await this.handleCardUpdate(action, integration, context);
+            break;
+          case 'deleteCard':
+            await this.handleCardDelete(card.id, context);
+            break;
+          case 'updateCheckItemStateOnCard':
+            await this.handleChecklistUpdate(action, context);
+            break;
+          case 'addMemberToCard':
+          case 'removeMemberFromCard':
+            await this.handleMemberChange(action, context);
+            break;
+          default:
+            this.logWebhook('skipped', context, `Unhandled action: ${actionType}`);
+        }
+
+        // 6. Mark as successfully processed
+        if (context.webhookId) {
+          await this.webhookSecurityService.markAsProcessed(context.webhookId, {
+            id: context.webhookId,
+            processedAt: new Date(),
+            actionType,
+            cardId: card.id,
+            result: 'success',
+          });
+        }
+
+        const duration = Date.now() - startTime;
+        this.logWebhook('success', context, `Processed in ${duration}ms`);
+        return { success: true, message: 'Webhook processed successfully' };
+
+      } finally {
+        // Always release the lock
+        await this.webhookSecurityService.releaseLock(card.id);
+      }
+
     } catch (error) {
-      this.logger.error('Failed to process Trello webhook', error);
+      const duration = Date.now() - startTime;
+      this.logWebhook('error', context, error.message);
+
+      // Queue for retry
+      await this.webhookSecurityService.queueForRetry(webhookData, error.message, 0);
+
+      // Mark as failed in idempotency store
+      if (context.webhookId) {
+        await this.webhookSecurityService.markAsProcessed(context.webhookId, {
+          id: context.webhookId,
+          processedAt: new Date(),
+          actionType: context.actionType || 'unknown',
+          cardId: context.cardId || 'unknown',
+          result: 'failed',
+          error: error.message,
+        });
+      }
+
+      return { success: false, message: error.message };
     }
   }
 
   /**
-   * Handle Trello card update (move, rename, description change)
+   * Process webhook with retry context
    */
-  private async handleCardUpdate(action: any): Promise<void> {
+  private async processWebhookWithRetry(payload: any, retryCount: number): Promise<void> {
+    try {
+      const result = await this.handleTrelloWebhook(payload);
+      
+      if (!result.success && retryCount < 5) {
+        await this.webhookSecurityService.queueForRetry(payload, result.message, retryCount);
+      }
+    } catch (error) {
+      this.logger.error(`Retry processing failed: ${error.message}`);
+      if (retryCount < 5) {
+        await this.webhookSecurityService.queueForRetry(payload, error.message, retryCount);
+      }
+    }
+  }
+
+  /**
+   * Find integration by Trello board ID
+   */
+  private async findIntegrationByBoardId(boardId: string): Promise<Integration | null> {
+    if (!boardId) return null;
+
+    return await this.integrationRepository
+      .createQueryBuilder('integration')
+      .addSelect('integration.accessToken')
+      .leftJoinAndSelect('integration.user', 'user')
+      .where('integration.provider = :provider', { provider: 'trello' })
+      .andWhere("integration.config->>'boardId' = :boardId", { boardId })
+      .getOne();
+  }
+
+  /**
+   * Structured logging for webhooks
+   */
+  private logWebhook(
+    status: 'success' | 'error' | 'skipped' | 'rejected' | 'deferred',
+    context: Partial<WebhookContext>,
+    message: string,
+  ): void {
+    const logData = {
+      status,
+      actionType: context.actionType,
+      cardId: context.cardId,
+      userId: context.userId,
+      integrationId: context.integrationId,
+      taskId: context.taskId,
+      message,
+      timestamp: new Date().toISOString(),
+    };
+
+    const emoji = {
+      success: '✅',
+      error: '❌',
+      skipped: '⏭️',
+      rejected: '🚫',
+      deferred: '⏳',
+    }[status];
+
+    if (status === 'error') {
+      this.logger.error(`${emoji} Webhook ${status}: ${JSON.stringify(logData)}`);
+    } else if (status === 'rejected') {
+      this.logger.warn(`${emoji} Webhook ${status}: ${JSON.stringify(logData)}`);
+    } else {
+      this.logger.log(`${emoji} Webhook ${status}: ${JSON.stringify(logData)}`);
+    }
+  }
+
+  /**
+   * Handle Trello card update with conflict resolution
+   */
+  private async handleCardUpdate(
+    action: any,
+    integration: Integration,
+    context: Partial<WebhookContext>,
+  ): Promise<void> {
     const cardId = action.data.card.id;
     const listAfter = action.data.listAfter;
     const listBefore = action.data.listBefore;
     const old = action.data.old;
 
     this.logger.log(`Processing card update for card ${cardId}`);
-    this.logger.log(`List change: ${listBefore?.name || 'N/A'} → ${listAfter?.name || 'N/A'}`);
 
-    const task = await this.taskRepository.findOne({
-      where: { trelloCardId: cardId },
-      relations: ['repository', 'repository.user'],
-    });
+    // Use transaction for atomicity
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    if (!task) {
-      this.logger.warn(`Task not found for Trello card: ${cardId}`);
-      return;
-    }
+    try {
+      const task = await queryRunner.manager.findOne(Task, {
+        where: { trelloCardId: cardId },
+        relations: ['repository', 'repository.user'],
+      });
 
-    this.logger.log(`Found task: ${task.id} (current status: ${task.status})`);
+      if (!task) {
+        this.logWebhook('skipped', context, `Task not found for card ${cardId}`);
+        await queryRunner.commitTransaction();
+        return;
+      }
 
-    const integration = await this.integrationRepository.findOne({
-      where: {
-        user: { id: task.repository.user.id },
-        provider: 'trello',
-        status: 'active',
-      },
-    });
+      context.taskId = task.id;
+      context.userId = task.repository.user?.id;
 
-    if (!integration) {
-      this.logger.warn(`No active Trello integration found for user ${task.repository.user.id}`);
-      return;
-    }
-
-    this.logger.log(`Integration config:`, {
-      todoListId: integration.config?.todoListId,
-      inProgressListId: integration.config?.inProgressListId,
-      doneListId: integration.config?.doneListId,
-      autoMoveCards: integration.config?.autoMoveCards,
-    });
-
-    let taskUpdated = false;
-
-    // Handle list change (card moved) - ALWAYS sync, don't check autoMoveCards
-    if (listAfter && listBefore && listAfter.id !== listBefore.id) {
-      let newStatus = task.status;
+      // Check for local modifications (conflict detection)
+      const lastLocalUpdate = task.lastModifiedAt?.getTime() || task.trelloLastSyncedAt?.getTime() || 0;
+      const webhookTime = new Date(action.date).getTime();
       
-      if (listAfter.id === integration.config.todoListId) {
-        newStatus = 'open';
-      } else if (listAfter.id === integration.config.inProgressListId) {
-        newStatus = 'in-progress';
-      } else if (listAfter.id === integration.config.doneListId) {
-        newStatus = 'done';
+      // If task was updated locally within 5 seconds of webhook, there may be a conflict
+      if (lastLocalUpdate > webhookTime - 5000 && lastLocalUpdate < webhookTime + 5000) {
+        this.logger.warn(`Potential conflict detected for task ${task.id} - local update near webhook time`);
+        // For now, let Trello win (last-write-wins), but log it
       }
 
-      if (newStatus !== task.status) {
-        task.status = newStatus;
-        taskUpdated = true;
-        this.logger.log(
-          `✅ Updated task ${task.id} status to ${newStatus} (moved from ${listBefore.name} to ${listAfter.name})`
-        );
+      let taskUpdated = false;
+      let statusChange: { from: string; to: string } | null = null;
+
+      // Handle list change (card moved)
+      if (listAfter && listBefore && listAfter.id !== listBefore.id) {
+        let newStatus = task.status;
+        
+        if (listAfter.id === integration.config?.todoListId) {
+          newStatus = 'open';
+        } else if (listAfter.id === integration.config?.inProgressListId) {
+          newStatus = 'in-progress';
+        } else if (listAfter.id === integration.config?.doneListId) {
+          newStatus = 'done';
+        } else {
+          // Card moved to unmapped list - log warning
+          this.logger.warn(
+            `Card ${cardId} moved to unmapped list "${listAfter.name}" (${listAfter.id}). ` +
+            `Configured lists: todo=${integration.config?.todoListId}, ` +
+            `inProgress=${integration.config?.inProgressListId}, ` +
+            `done=${integration.config?.doneListId}`,
+          );
+        }
+
+        if (newStatus !== task.status) {
+          statusChange = { from: task.status, to: newStatus };
+          task.status = newStatus;
+          taskUpdated = true;
+          this.logger.log(
+            `Updated task ${task.id} status: ${statusChange.from} → ${statusChange.to}`,
+          );
+        }
+      }
+
+      // Handle name change with fallback parsing
+      if (old?.name && action.data.card.name !== old.name) {
+        const newName = action.data.card.name;
+        // Try to parse "TYPE: description" format
+        const match = newName.match(/^([A-Z]+):\s*(.+)$/);
+        if (match) {
+          const [, type, description] = match;
+          task.type = type;
+          task.description = description;
+          taskUpdated = true;
+        } else {
+          // Fallback: use entire name as description, keep existing type
+          this.logger.warn(`Card name doesn't match expected format: "${newName}". Using as description.`);
+          task.description = newName;
+          taskUpdated = true;
+        }
+      }
+
+      // Handle archive/unarchive
+      if (old?.closed !== undefined && action.data.card.closed !== old.closed) {
+        if (action.data.card.closed) {
+          statusChange = { from: task.status, to: 'done' };
+          task.status = 'done';
+          taskUpdated = true;
+        } else {
+          statusChange = { from: task.status, to: 'open' };
+          task.status = 'open';
+          taskUpdated = true;
+        }
+      }
+
+      if (taskUpdated) {
+        task.trelloLastSyncedAt = new Date();
+        await queryRunner.manager.save(task);
+        await queryRunner.commitTransaction();
+
+        // Send notification to user about the change
+        if (statusChange && context.userId) {
+          await this.notificationsService.emit(context.userId, {
+            type: NotificationType.TASK_UPDATED,
+            title: 'Task Updated from Trello',
+            message: `Task "${task.description.substring(0, 50)}..." status changed to ${statusChange.to}`,
+            data: {
+              taskId: task.id,
+              source: 'trello',
+              statusChange,
+              cardId,
+            },
+            timestamp: new Date(),
+          });
+        }
       } else {
-        this.logger.log(`Status unchanged (${newStatus}) - list ${listAfter.id} not mapped to a different status`);
+        await queryRunner.commitTransaction();
       }
-    }
 
-    // Handle name change
-    if (old?.name && action.data.card.name !== old.name) {
-      // Extract description from card name (format: "TYPE: description")
-      const match = action.data.card.name.match(/^([A-Z]+):\s*(.+)$/);
-      if (match) {
-        const [, type, description] = match;
-        task.type = type;
-        task.description = description;
-        taskUpdated = true;
-        this.logger.log(`Updated task ${task.id} from card name change`);
-      }
-    }
-
-    // Handle description change
-    if (old?.desc !== undefined && action.data.card.desc !== old.desc) {
-      // Could parse description to extract more metadata if needed
-      taskUpdated = true;
-      this.logger.log(`Task ${task.id} description updated in Trello`);
-    }
-
-    // Handle archive/unarchive
-    if (old?.closed !== undefined && action.data.card.closed !== old.closed) {
-      if (action.data.card.closed) {
-        task.status = 'done';
-        taskUpdated = true;
-        this.logger.log(`Task ${task.id} marked as done (card archived)`);
-      } else {
-        task.status = 'open';
-        taskUpdated = true;
-        this.logger.log(`Task ${task.id} reopened (card unarchived)`);
-      }
-    }
-
-    if (taskUpdated) {
-      task.trelloLastSyncedAt = new Date();
-      await this.taskRepository.save(task);
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
   }
 
   /**
    * Handle Trello card deletion
    */
-  private async handleCardDelete(cardId: string): Promise<void> {
+  private async handleCardDelete(
+    cardId: string,
+    context: Partial<WebhookContext>,
+  ): Promise<void> {
     const task = await this.taskRepository.findOne({
       where: { trelloCardId: cardId },
+      relations: ['repository', 'repository.user'],
     });
 
     if (!task) {
-      this.logger.warn(`Task not found for deleted Trello card: ${cardId}`);
+      this.logWebhook('skipped', context, `Task not found for deleted card ${cardId}`);
       return;
     }
+
+    context.taskId = task.id;
+    context.userId = task.repository.user?.id;
 
     // Clear Trello association but don't delete the task
     task.trelloCardId = undefined;
@@ -626,26 +884,49 @@ export class IntegrationsService {
     delete task.trelloSyncError;
 
     await this.taskRepository.save(task);
+    
     this.logger.log(`Cleared Trello association for task ${task.id} (card deleted)`);
+
+    // Notify user
+    if (context.userId) {
+      await this.notificationsService.emit(context.userId, {
+        type: NotificationType.TASK_UPDATED,
+        title: 'Trello Card Deleted',
+        message: `Trello card for task "${task.description.substring(0, 50)}..." was deleted`,
+        data: {
+          taskId: task.id,
+          source: 'trello',
+          action: 'card_deleted',
+        },
+        timestamp: new Date(),
+      });
+    }
   }
 
   /**
    * Handle checklist item state change
    */
-  private async handleChecklistUpdate(action: any): Promise<void> {
+  private async handleChecklistUpdate(
+    action: any,
+    context: Partial<WebhookContext>,
+  ): Promise<void> {
     const cardId = action.data.card.id;
     const checkItem = action.data.checkItem;
 
     const task = await this.taskRepository.findOne({
       where: { trelloCardId: cardId },
+      relations: ['repository', 'repository.user'],
     });
 
     if (!task) {
       return;
     }
 
+    context.taskId = task.id;
+    context.userId = task.repository.user?.id;
+
     // If checklist item completed, mark task as done
-    if (checkItem.state === 'complete') {
+    if (checkItem?.state === 'complete') {
       task.status = 'done';
       task.trelloLastSyncedAt = new Date();
       await this.taskRepository.save(task);
@@ -656,7 +937,10 @@ export class IntegrationsService {
   /**
    * Handle member added/removed from card
    */
-  private async handleMemberChange(action: any): Promise<void> {
+  private async handleMemberChange(
+    action: any,
+    context: Partial<WebhookContext>,
+  ): Promise<void> {
     const cardId = action.data.card.id;
     const member = action.member;
 
@@ -668,8 +952,11 @@ export class IntegrationsService {
       return;
     }
 
-    // Could update assignee field if it exists
-    this.logger.log(`Member ${member.username} ${action.type === 'addMemberToCard' ? 'added to' : 'removed from'} card for task ${task.id}`);
+    context.taskId = task.id;
+
+    this.logger.log(
+      `Member ${member?.username} ${action.type === 'addMemberToCard' ? 'added to' : 'removed from'} card for task ${task.id}`,
+    );
   }
 
   /**

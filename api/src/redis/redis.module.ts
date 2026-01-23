@@ -1,4 +1,57 @@
-import { Global, Module } from '@nestjs/common';
+import { Global, Module, Logger } from '@nestjs/common';
+import Redis from 'ioredis';
+
+// Create a singleton Redis instance
+let redisClient: Redis | null = null;
+const logger = new Logger('RedisModule');
+
+const createRedisClient = (): Redis => {
+    if (redisClient) {
+        return redisClient;
+    }
+
+    // Use REDIS_URL for Upstash (includes TLS support)
+    const redisUrl = process.env.REDIS_URL;
+    
+    if (redisUrl) {
+        // Upstash requires TLS - convert redis:// to rediss://
+        const tlsUrl = redisUrl.replace('redis://', 'rediss://');
+        
+        redisClient = new Redis(tlsUrl, {
+            maxRetriesPerRequest: null, // Required for BullMQ/queue compatibility
+            enableReadyCheck: false,
+            retryStrategy: (times) => {
+                if (times > 10) {
+                    logger.error(`Redis connection failed after ${times} retries`);
+                    return null;
+                }
+                return Math.min(times * 500, 5000);
+            },
+        });
+    } else {
+        // Fallback to host/port for local Redis
+        redisClient = new Redis({
+            host: process.env.REDIS_HOST || 'localhost',
+            port: +(process.env.REDIS_PORT || 6379),
+            maxRetriesPerRequest: null,
+            retryStrategy: (times) => {
+                if (times > 10) {
+                    logger.error(`Redis connection failed after ${times} retries`);
+                    return null;
+                }
+                return Math.min(times * 500, 5000);
+            },
+        });
+    }
+
+    redisClient.on('connect', () => logger.log('Redis connected'));
+    redisClient.on('ready', () => logger.log('Redis ready'));
+    redisClient.on('error', (err) => logger.error(`Redis error: ${err.message}`));
+    redisClient.on('close', () => logger.warn('Redis connection closed'));
+    redisClient.on('reconnecting', () => logger.log('Redis reconnecting...'));
+
+    return redisClient;
+};
 
 @Global()
 @Module({

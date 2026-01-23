@@ -13,18 +13,23 @@ import {
   HttpStatus,
   Head,
   HttpException,
+  Headers,
+  RawBodyRequest,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { IntegrationsService } from './services/integrations.service';
 import { TrelloApiService } from './services/trello-api.service';
+import { TrelloWebhookSecurityService } from './services/trello-webhook-security.service';
 import { CreateIntegrationDto, UpdateIntegrationDto, SyncTasksDto, TrelloConfigDto } from './dto/integration.dto';
 import { Public } from './decorators/public.decorator';
+import { Request } from 'express';
 
 @Controller('integrations')
 export class IntegrationsController {
   constructor(
     private readonly integrationsService: IntegrationsService,
     private readonly trelloApiService: TrelloApiService,
+    private readonly webhookSecurityService: TrelloWebhookSecurityService,
   ) {}
 
   /**
@@ -325,24 +330,42 @@ export class IntegrationsController {
   @Public()
   @Post('webhook/trello')
   @HttpCode(HttpStatus.OK)
-  async handleTrelloWebhook(@Body() payload: any) {
-    console.log('🔔 Trello webhook received:', JSON.stringify(payload, null, 2));
+  async handleTrelloWebhook(
+    @Req() req: RawBodyRequest<Request>,
+    @Body() payload: any,
+    @Headers('x-trello-webhook') signatureHeader?: string,
+  ) {
+    const startTime = Date.now();
+    const callbackUrl = `${process.env.BACKEND_URL || 'http://localhost:3001'}/integrations/webhook/trello`;
     
-    // Trello webhook verification (HEAD request)
-    if (!payload.action) {
+    // Get raw body for signature verification
+    const rawBody = req.rawBody?.toString() || JSON.stringify(payload);
+    
+    // Trello webhook verification (HEAD request returns empty payload)
+    if (!payload || !payload.action) {
       console.log('✅ Webhook verification request (no action)');
-      return { status: 'ok' };
+      return { status: 'ok', message: 'Verification successful' };
     }
 
-    // Use the enhanced webhook handler
-    try {
-      await this.integrationsService.handleTrelloWebhook(payload);
-      console.log('✅ Webhook processed successfully');
-    } catch (error) {
-      console.error('❌ Webhook processing failed:', error.message);
-    }
+    // Log incoming webhook (structured)
+    console.log(`📥 Webhook received: ${payload.action?.type} for card ${payload.action?.data?.card?.id}`);
 
-    return { status: 'ok' };
+    // Process with full security validation
+    const result = await this.integrationsService.handleTrelloWebhook(
+      payload,
+      rawBody,
+      signatureHeader,
+      callbackUrl,
+    );
+
+    const duration = Date.now() - startTime;
+    console.log(`📤 Webhook response (${duration}ms): ${result.success ? '✅' : '❌'} ${result.message}`);
+
+    return { 
+      status: result.success ? 'ok' : 'error',
+      message: result.message,
+      duration,
+    };
   }
 
   /**
@@ -361,6 +384,15 @@ export class IntegrationsController {
   @HttpCode(HttpStatus.OK)
   verifyTrelloWebhook() {
     return { status: 'ok' };
+  }
+
+  /**
+   * Get webhook retry queue status
+   */
+  @Get('webhook/retry-status')
+  @UseGuards(AuthGuard('jwt'))
+  async getRetryQueueStatus() {
+    return this.webhookSecurityService.getRetryQueueStatus();
   }
 
   /**
