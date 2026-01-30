@@ -1,71 +1,58 @@
-# gittask README
+# GitTask VS Code Extension
 
-This is the README for your extension "gittask". After writing up a brief description, we recommend including the following sections.
+GitTask is a code-awareness and navigation sidebar for TODO-style micro-tasks embedded in source code. It is not a task manager or sprint planner; instead, it surfaces code-level tasks and helps you understand their context quickly.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **Task discovery**: Scans the workspace for comment-based tasks such as `TODO`, `FIXME`, `HACK`, and structured `@task` comments.
+- **Custom `@task` syntax**: Supports structured comments like:
 
-For example if there is an image subfolder under your extension project workspace:
+	```ts
+	// @task [priority:high] [status:active] [author:alice]
+	// Refactor authentication middleware
+	```
 
-\!\[feature X\]\(images/feature-x.png\)
+	The `@task` tag, `priority`, `status`, and `author` fields are syntax highlighted and machine-readable for future backend integrations.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+- **Sidebar task view**: Shows all discovered tasks under the **GitTask Tasks** view in the Explorer sidebar, including:
+	- Task text
+	- File name and line number
+	- Task type (TODO / FIXME / HACK / structured)
+	- Status (active / done)
+	- Assigned developer (if present)
 
-## Requirements
+- **Automatic updates**: Keeps the task list up to date as you create, edit, or delete task comments using document change listeners and filesystem watchers.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- **Navigation**: Clicking a task opens the file, jumps to the exact line, and selects the task comment.
 
-## Extension Settings
+- **Filtering & sorting**:
+	- Filter by status (active / done)
+	- Filter by task type
+	- Filter by author
+	- Sort by file or priority
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+- **AI-guided code tours (placeholder)**: For any selected task, run **GitTask: AI-Guided Code Tour** to get a read-only, heuristic tour suggesting:
+	- Related symbols near the task
+	- A safe reading order
+	- Pointers to surrounding context and where to look next
 
-For example:
+## Usage
 
-This extension contributes the following settings:
+1. Open a folder or workspace.
+2. Open the **GitTask Tasks** view in the Explorer sidebar.
+3. Use the following commands (from the Command Palette or the view):
+	 - `GitTask: Refresh Tasks`
+	 - `GitTask: Filter by Status`
+	 - `GitTask: Filter by Type`
+	 - `GitTask: Filter by Author`
+	 - `GitTask: Sort Tasks`
+	 - `GitTask: AI-Guided Code Tour`
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+## Non-goals
 
-## Known Issues
+- No task assignment UI
+- No sprint planning or backlog management
+- No automatic code edits or fixes
+- No personal to-do lists
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+GitTask focuses purely on code-level task discovery and navigation.
