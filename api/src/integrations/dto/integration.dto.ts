@@ -1,8 +1,10 @@
-import { IsString, IsOptional, IsBoolean, IsObject, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsObject, IsUUID, IsDate } from 'class-validator';
+import { Type } from 'class-transformer';
+import { TrelloConfig, JiraConfig } from '../interfaces/provider-config.interface';
 
 export class CreateIntegrationDto {
   @IsString()
-  provider: string; // 'trello'
+  provider: 'trello' | 'jira' | 'asana';
 
   @IsString()
   accessToken: string;
@@ -12,20 +14,13 @@ export class CreateIntegrationDto {
   refreshToken?: string;
 
   @IsOptional()
+  @Type(() => Date)
+  @IsDate()
+  tokenExpiresAt?: Date;
+
+  @IsOptional()
   @IsObject()
-  config?: {
-    boardId?: string;
-    boardName?: string;
-    todoListId?: string;
-    todoListName?: string;
-    inProgressListId?: string;
-    inProgressListName?: string;
-    doneListId?: string;
-    doneListName?: string;
-    syncEnabled?: boolean;
-    autoCreateCards?: boolean;
-    autoMoveCards?: boolean;
-  };
+  config?: TrelloConfig | JiraConfig;
 
   @IsOptional()
   @IsUUID()
@@ -35,19 +30,7 @@ export class CreateIntegrationDto {
 export class UpdateIntegrationDto {
   @IsOptional()
   @IsObject()
-  config?: {
-    boardId?: string;
-    boardName?: string;
-    todoListId?: string;
-    todoListName?: string;
-    inProgressListId?: string;
-    inProgressListName?: string;
-    doneListId?: string;
-    doneListName?: string;
-    syncEnabled?: boolean;
-    autoCreateCards?: boolean;
-    autoMoveCards?: boolean;
-  };
+  config?: Partial<TrelloConfig | JiraConfig>;
 
   @IsOptional()
   @IsString()

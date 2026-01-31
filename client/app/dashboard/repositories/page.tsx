@@ -18,7 +18,7 @@ export default function RepositoriesPage() {
     try {
       const [reposResponse, integrationsResponse] = await Promise.all([
         axiosInstance.get('/repositories'),
-        axiosInstance.get('/integrations?provider=trello'),
+        axiosInstance.get('/integrations'), // Get ALL integrations (both Trello and Jira)
       ]);
       
       const repos = reposResponse.data || [];
@@ -26,13 +26,19 @@ export default function RepositoriesPage() {
       
       // Map integrations to repositories
       const reposWithIntegrations = repos.map((repo: any) => {
-        const integration = integrations.find((int: any) => int.repository?.id === repo.id);
+        // Find any integration linked to this repo (could be Trello or Jira)
+        const integration = integrations.find(
+          (int: any) => int.repository?.id === repo.id && int.isConfigured
+        );
         return {
           ...repo,
-          trelloIntegration: integration ? {
+          integration: integration ? {
             id: integration.id,
+            provider: integration.provider,
             status: integration.status,
-            boardName: integration.config?.boardName,
+            name: integration.provider === 'trello' 
+              ? integration.config?.boardName 
+              : integration.config?.projectName,
           } : null,
         };
       });

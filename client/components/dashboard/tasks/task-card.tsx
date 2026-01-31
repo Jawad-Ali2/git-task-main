@@ -23,10 +23,17 @@ interface Task {
   authorAvatar?: string;
   codeSnippet?: string;
   context?: string;
+  // Trello fields
   trelloCardId?: string;
   trelloCardUrl?: string;
   trelloSyncStatus?: string;
   trelloLastSyncedAt?: string;
+  // Jira fields
+  jiraIssueId?: string;
+  jiraIssueKey?: string;
+  jiraIssueUrl?: string;
+  jiraSyncStatus?: string;
+  jiraLastSyncedAt?: string;
 }
 
 interface TaskCardProps {
@@ -92,6 +99,19 @@ export function TaskCard({
                       <path d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.656 1.343 3 3 3h18c1.656 0 3-1.344 3-3V3c0-1.657-1.344-3-3-3zM10.44 18.18c0 .795-.645 1.44-1.44 1.44H4.56c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.645-1.44 1.44-1.44H9c.795 0 1.44.645 1.44 1.44v13.62zm10.44-6c0 .794-.645 1.44-1.44 1.44H15c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.646-1.44 1.44-1.44h4.44c.795 0 1.44.645 1.44 1.44v7.62z"/>
                     </svg>
                     <span>View in Trello</span>
+                  </a>
+                )}
+                {task.jiraIssueUrl && (
+                  <a
+                    href={task.jiraIssueUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.005 1.005 0 0 0 23.013 0z"/>
+                    </svg>
+                    <span>{task.jiraIssueKey || 'View in Jira'}</span>
                   </a>
                 )}
               </div>
@@ -262,7 +282,8 @@ export function TaskCard({
                   <Code className="h-4 w-4" />
                 </Button>
               )}
-              {task.trelloCardUrl ? (
+              {/* Trello link/button */}
+              {task.trelloCardUrl && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -274,7 +295,22 @@ export function TaskCard({
                     <path d="M21 0H3C1.343 0 0 1.343 0 3v18c0 1.656 1.343 3 3 3h18c1.656 0 3-1.344 3-3V3c0-1.657-1.344-3-3-3zM10.44 18.18c0 .795-.645 1.44-1.44 1.44H4.56c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.645-1.44 1.44-1.44H9c.795 0 1.44.645 1.44 1.44v13.62zm10.44-6c0 .794-.645 1.44-1.44 1.44H15c-.795 0-1.44-.646-1.44-1.44V4.56c0-.795.646-1.44 1.44-1.44h4.44c.795 0 1.44.645 1.44 1.44v7.62z"/>
                   </svg>
                 </Button>
-              ) : onSyncToTrello && (
+              )}
+              {/* Jira link/button */}
+              {task.jiraIssueUrl && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-blue-600 hover:text-blue-700"
+                  onClick={() => window.open(task.jiraIssueUrl, '_blank')}
+                  title={task.jiraIssueKey ? `View ${task.jiraIssueKey} in Jira` : 'View in Jira'}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.005 1.005 0 0 0 23.013 0z"/>
+                  </svg>
+                </Button>
+              )}
+              {onSyncToTrello && !task.trelloCardUrl && !task.jiraIssueUrl && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -287,13 +323,13 @@ export function TaskCard({
                   </svg>
                 </Button>
               )}
-              {onCreateCard && (
+              {onCreateCard && !task.trelloCardUrl && !task.jiraIssueUrl && (
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9"
                   onClick={() => onCreateCard(task)}
-                  title="Create Trello Card"
+                  title="Create Card"
                 >
                   <ExternalLink className="h-4 w-4" />
                 </Button>

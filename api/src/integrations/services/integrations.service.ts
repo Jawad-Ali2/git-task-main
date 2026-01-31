@@ -6,11 +6,16 @@ import { Task } from '../../tasks/entities/tasks.entity';
 import { Repository } from '../../repositories/entities/repository.entity';
 import { TrelloApiService } from './trello-api.service';
 import { TrelloWebhookSecurityService } from './trello-webhook-security.service';
+import { JiraApiService } from './jira/jira-api.service';
+import { JiraWebhookSecurityService } from './jira/jira-webhook-security.service';
 import { CreateIntegrationDto, UpdateIntegrationDto, SyncTasksDto } from '../dto/integration.dto';
 import { NotificationsService, NotificationType } from '../../notifications/notifications.service';
+import { JiraConfig, TrelloConfig } from '../interfaces/provider-config.interface';
+import { JiraWebhookEvent } from '../interfaces/webhook-handler.interface';
 import Redis from 'ioredis';
 
 export interface WebhookContext {
+  provider?: 'trello' | 'jira';
   userId: string;
   integrationId: string;
   taskId?: string;
@@ -33,6 +38,8 @@ export class IntegrationsService implements OnModuleInit {
     private repositoryRepository: TypeOrmRepository<Repository>,
     private trelloApiService: TrelloApiService,
     private webhookSecurityService: TrelloWebhookSecurityService,
+    private jiraApiService: JiraApiService,
+    private jiraWebhookSecurityService: JiraWebhookSecurityService,
     private notificationsService: NotificationsService,
     @Inject('REDIS_CLIENT')
     private readonly redis: Redis,
@@ -43,7 +50,7 @@ export class IntegrationsService implements OnModuleInit {
    * Initialize retry processor subscription
    */
   async onModuleInit() {
-    // Subscribe to retry events
+    // Subscribe to Trello retry events
     const subscriber = this.redis.duplicate();
     await subscriber.subscribe('trello:webhook:retry');
     
@@ -57,6 +64,22 @@ export class IntegrationsService implements OnModuleInit {
         }
       }
     });
+
+    // Subscribe to Jira retry events
+    const jiraSubscriber = this.redis.duplicate();
+    await jiraSubscriber.subscribe('jira:webhook:retry');
+    
+    jiraSubscriber.on('message', async (channel, message) => {
+      if (channel === 'jira:webhook:retry') {
+        try {
+          const { payload, retryCount } = JSON.parse(message);
+          await this.processJiraWebhookWithRetry(payload, retryCount);
+        } catch (error) {
+          this.logger.error(`Failed to process Jira retry: ${error.message}`);
+        }
+      }
+    });
+
 
     this.logger.log('Webhook retry processor initialized');
   }
@@ -132,6 +155,151 @@ export class IntegrationsService implements OnModuleInit {
   }
 
   /**
+   * Get user-level OAuth connections (repositoryId = NULL)
+   * These are integrations that have OAuth tokens but are not linked to a specific repository
+   */
+  async getUserConnections(userId: string): Promise<Integration[]> {
+    return await this.integrationRepository
+      .createQueryBuilder('integration')
+      .addSelect('integration.accessToken')
+      .addSelect('integration.refreshToken')
+      .leftJoinAndSelect('integration.user', 'user')
+      .where('integration.userId = :userId', { userId })
+      .andWhere('integration.repositoryId IS NULL')
+      .getMany();
+  }
+
+  /**
+   * Get integrations for a specific repository
+   */
+  async getRepositoryIntegrations(userId: string, repositoryId: string): Promise<Integration[]> {
+    return await this.integrationRepository
+      .createQueryBuilder('integration')
+      .addSelect('integration.accessToken')
+      .addSelect('integration.refreshToken')
+      .leftJoinAndSelect('integration.user', 'user')
+      .leftJoinAndSelect('integration.repository', 'repository')
+      .where('integration.userId = :userId', { userId })
+      .andWhere('integration.repositoryId = :repositoryId', { repositoryId })
+      .getMany();
+  }
+
+  /**
+   * Check if user has a user-level OAuth connection for a provider
+   */
+  async hasUserConnection(userId: string, provider: 'trello' | 'jira'): Promise<boolean> {
+    const connection = await this.integrationRepository
+      .createQueryBuilder('integration')
+      .where('integration.userId = :userId', { userId })
+      .andWhere('integration.provider = :provider', { provider })
+      .andWhere('integration.repositoryId IS NULL')
+      .getOne();
+    
+    return !!connection;
+  }
+
+  /**
+   * Link a repository to an existing user-level OAuth connection
+   * Creates a new repo-specific integration with copied tokens
+   */
+  async linkRepositoryToProvider(
+    userId: string,
+    repositoryId: string,
+    provider: 'trello' | 'jira',
+  ): Promise<Integration> {
+    // Check if repository already has this provider linked
+    const existingRepoIntegration = await this.integrationRepository
+      .createQueryBuilder('integration')
+      .where('integration.userId = :userId', { userId })
+      .andWhere('integration.repositoryId = :repositoryId', { repositoryId })
+      .andWhere('integration.provider = :provider', { provider })
+      .getOne();
+
+    if (existingRepoIntegration) {
+      throw new HttpException(
+        `This repository is already linked to ${provider}`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Check if repository already has another PM tool linked
+    const existingOtherIntegration = await this.integrationRepository
+      .createQueryBuilder('integration')
+      .where('integration.userId = :userId', { userId })
+      .andWhere('integration.repositoryId = :repositoryId', { repositoryId })
+      .andWhere('integration.isConfigured = :isConfigured', { isConfigured: true })
+      .getOne();
+
+    if (existingOtherIntegration) {
+      throw new HttpException(
+        `This repository is already linked to ${existingOtherIntegration.provider}. Unlink it first.`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Get user-level OAuth connection with tokens
+    const userConnection = await this.integrationRepository
+      .createQueryBuilder('integration')
+      .addSelect('integration.accessToken')
+      .addSelect('integration.refreshToken')
+      .where('integration.userId = :userId', { userId })
+      .andWhere('integration.provider = :provider', { provider })
+      .andWhere('integration.repositoryId IS NULL')
+      .getOne();
+
+    if (!userConnection) {
+      throw new HttpException(
+        `No ${provider} connection found. Please connect ${provider} first from Dashboard Settings.`,
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Verify repository exists and belongs to user
+    const repository = await this.repositoryRepository.findOne({
+      where: { id: repositoryId, user: { id: userId } },
+    });
+
+    if (!repository) {
+      throw new NotFoundException('Repository not found');
+    }
+
+    // Build config - copy essential OAuth-related fields from user connection
+    let config: TrelloConfig | JiraConfig;
+    if (provider === 'trello') {
+      config = { 
+        syncEnabled: false, 
+        autoCreateCards: false, 
+        autoMoveCards: false 
+      } as TrelloConfig;
+    } else {
+      // For Jira, copy cloudId and siteUrl from user connection - these are required for API calls
+      const userConfig = userConnection.config as JiraConfig;
+      config = { 
+        cloudId: userConfig?.cloudId,
+        siteUrl: userConfig?.siteUrl,
+        syncEnabled: false, 
+        autoCreateIssues: false, 
+        autoTransitionIssues: false 
+      } as JiraConfig;
+    }
+
+    // Create new repo-specific integration with copied tokens
+    const repoIntegration = this.integrationRepository.create({
+      provider,
+      accessToken: userConnection.accessToken, // Already encrypted
+      refreshToken: userConnection.refreshToken,
+      tokenExpiresAt: userConnection.tokenExpiresAt,
+      user: { id: userId } as any,
+      repository: { id: repositoryId } as any,
+      status: 'active',
+      isConfigured: false, // Needs configuration
+      config,
+    });
+
+    return await this.integrationRepository.save(repoIntegration) as unknown as Integration;
+  }
+
+  /**
    * Update integration configuration
    */
   async update(
@@ -143,6 +311,15 @@ export class IntegrationsService implements OnModuleInit {
 
     if (dto.config) {
       integration.config = { ...integration.config, ...dto.config };
+      
+      // Auto-set isConfigured based on required fields being present
+      if (integration.provider === 'trello') {
+        const config = integration.config as TrelloConfig;
+        integration.isConfigured = !!(config.boardId && config.todoListId);
+      } else if (integration.provider === 'jira') {
+        const config = integration.config as JiraConfig;
+        integration.isConfigured = !!(config.projectId && config.issueTypeId && config.todoStatusId);
+      }
     }
 
     if (dto.status) {
@@ -150,6 +327,39 @@ export class IntegrationsService implements OnModuleInit {
     }
 
     return await this.integrationRepository.save(integration);
+  }
+
+  /**
+   * Update integration tokens (for OAuth token refresh)
+   * This method encrypts the tokens before saving
+   */
+  async updateTokens(
+    id: string,
+    tokens: {
+      accessToken: string;
+      refreshToken?: string;
+      tokenExpiresAt?: Date;
+    },
+  ): Promise<void> {
+    const integration = await this.integrationRepository
+      .createQueryBuilder('integration')
+      .where('integration.id = :id', { id })
+      .getOne();
+
+    if (!integration) {
+      throw new NotFoundException('Integration not found');
+    }
+
+    // Use the entity's setter which handles encryption
+    integration.accessToken = tokens.accessToken;
+    if (tokens.refreshToken) {
+      integration.refreshToken = tokens.refreshToken;
+    }
+    if (tokens.tokenExpiresAt) {
+      integration.tokenExpiresAt = tokens.tokenExpiresAt;
+    }
+
+    await this.integrationRepository.save(integration);
   }
 
   /**
@@ -162,12 +372,13 @@ export class IntegrationsService implements OnModuleInit {
       throw new HttpException('Integration is not Trello', HttpStatus.BAD_REQUEST);
     }
 
-    if (!integration.config?.boardId) {
+    const config = integration.config as TrelloConfig;
+    if (!config?.boardId) {
       throw new HttpException('Board not configured', HttpStatus.BAD_REQUEST);
     }
 
-    if (integration.config?.webhookId) {
-      this.logger.log(`Webhook already exists: ${integration.config.webhookId}`);
+    if (config?.webhookId) {
+      this.logger.log(`Webhook already exists: ${config.webhookId}`);
       return; // Already has webhook
     }
 
@@ -187,19 +398,19 @@ export class IntegrationsService implements OnModuleInit {
       const webhook = await this.trelloApiService.createWebhook(
         apiKey,
         token,
-        integration.config.boardId,
+        config.boardId,
         callbackUrl,
       );
 
       // Save webhook ID to integration config
       integration.config = {
-        ...integration.config,
+        ...config,
         webhookId: webhook.id,
       };
 
       await this.integrationRepository.save(integration);
 
-      this.logger.log(`Created Trello webhook: ${webhook.id} for board ${integration.config.boardId}`);
+      this.logger.log(`Created Trello webhook: ${webhook.id} for board ${config.boardId}`);
     } catch (error) {
       this.logger.error('Failed to create Trello webhook', error);
       throw new HttpException(
@@ -245,19 +456,18 @@ export class IntegrationsService implements OnModuleInit {
     }
 
     // Find active Trello integration for this repository
-    const integration = await this.integrationRepository
+    // Prioritize repo-specific integration over user-level integration
+    let integration = await this.integrationRepository
       .createQueryBuilder('integration')
       .addSelect('integration.accessToken')
       .where('integration.userId = :userId', { userId })
       .andWhere('integration.provider = :provider', { provider: 'trello' })
       .andWhere('integration.status = :status', { status: 'active' })
-      .andWhere(
-        '(integration.repositoryId = :repoId OR integration.repositoryId IS NULL)',
-        { repoId: task.repository.id },
-      )
+      .andWhere('integration.repositoryId = :repoId', { repoId: task.repository.id })
+      .andWhere('integration.isConfigured = :isConfigured', { isConfigured: true })
       .getOne();
 
-    if (!integration || !integration.config?.syncEnabled) {
+    if (!integration) {
       throw new HttpException(
         'No active Trello integration found',
         HttpStatus.BAD_REQUEST,
@@ -675,6 +885,9 @@ export class IntegrationsService implements OnModuleInit {
       .addSelect('integration.accessToken')
       .leftJoinAndSelect('integration.user', 'user')
       .where('integration.provider = :provider', { provider: 'trello' })
+      .andWhere('integration.status = :status', { status: 'active' })
+      .andWhere('integration.isConfigured = :isConfigured', { isConfigured: true })
+      .andWhere('integration.repositoryId IS NOT NULL')
       .andWhere("integration.config->>'boardId' = :boardId", { boardId })
       .getOne();
   }
@@ -762,24 +975,25 @@ export class IntegrationsService implements OnModuleInit {
 
       let taskUpdated = false;
       let statusChange: { from: string; to: string } | null = null;
+      const trelloConfig = integration.config as TrelloConfig;
 
       // Handle list change (card moved)
       if (listAfter && listBefore && listAfter.id !== listBefore.id) {
         let newStatus = task.status;
         
-        if (listAfter.id === integration.config?.todoListId) {
+        if (listAfter.id === trelloConfig?.todoListId) {
           newStatus = 'open';
-        } else if (listAfter.id === integration.config?.inProgressListId) {
+        } else if (listAfter.id === trelloConfig?.inProgressListId) {
           newStatus = 'in-progress';
-        } else if (listAfter.id === integration.config?.doneListId) {
+        } else if (listAfter.id === trelloConfig?.doneListId) {
           newStatus = 'done';
         } else {
           // Card moved to unmapped list - log warning
           this.logger.warn(
             `Card ${cardId} moved to unmapped list "${listAfter.name}" (${listAfter.id}). ` +
-            `Configured lists: todo=${integration.config?.todoListId}, ` +
-            `inProgress=${integration.config?.inProgressListId}, ` +
-            `done=${integration.config?.doneListId}`,
+            `Configured lists: todo=${trelloConfig?.todoListId}, ` +
+            `inProgress=${trelloConfig?.inProgressListId}, ` +
+            `done=${trelloConfig?.doneListId}`,
           );
         }
 
@@ -985,13 +1199,15 @@ export class IntegrationsService implements OnModuleInit {
       return;
     }
 
+    const trelloConfig = integration.config as TrelloConfig;
+
     // Map list to status
     let newStatus = task.status;
-    if (newListId === integration.config.todoListId) {
+    if (newListId === trelloConfig.todoListId) {
       newStatus = 'open';
-    } else if (newListId === integration.config.inProgressListId) {
+    } else if (newListId === trelloConfig.inProgressListId) {
       newStatus = 'in-progress';
-    } else if (newListId === integration.config.doneListId) {
+    } else if (newListId === trelloConfig.doneListId) {
       newStatus = 'done';
     }
 
@@ -1045,6 +1261,796 @@ export class IntegrationsService implements OnModuleInit {
         return config.doneListId || config.todoListId; // Fallback to todo
       default:
         return config.todoListId;
+    }
+  }
+
+  // ==================== JIRA INTEGRATION METHODS ====================
+
+  /**
+   * Sync all tasks in a repository to Jira
+   */
+  async syncJiraRepositoryTasks(
+    userId: string,
+    dto: SyncTasksDto,
+  ): Promise<{ synced: number; failed: number; total: number; errors: string[] }> {
+    const integration = await this.integrationRepository
+      .createQueryBuilder('integration')
+      .addSelect('integration.accessToken')
+      .addSelect('integration.refreshToken')
+      .where('integration.userId = :userId', { userId })
+      .andWhere('integration.provider = :provider', { provider: 'jira' })
+      .andWhere('integration.status = :status', { status: 'active' })
+      .andWhere(
+        dto.repositoryId
+          ? 'integration.repositoryId = :repoId'
+          : 'integration.repositoryId IS NULL',
+        { repoId: dto.repositoryId },
+      )
+      .getOne();
+
+    if (!integration) {
+      throw new HttpException(
+        'No active Jira integration found for this repository',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const config = integration.config as JiraConfig;
+    if (!config?.syncEnabled) {
+      throw new HttpException(
+        'Jira sync is not enabled. Please configure Jira first.',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    if (!config.cloudId || !config.projectId || !config.issueTypeId) {
+      throw new HttpException(
+        'Jira project not fully configured',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    // Get tasks to sync
+    const query = this.taskRepository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.repository', 'repository')
+      .leftJoinAndSelect('repository.user', 'user')
+      .where('user.id = :userId', { userId });
+
+    if (dto.repositoryId) {
+      query.andWhere('repository.id = :repoId', { repoId: dto.repositoryId });
+    }
+
+    if (!dto.force) {
+      query.andWhere(
+        '(task.jiraSyncStatus IS NULL OR task.jiraSyncStatus = :status)',
+        { status: 'pending' },
+      );
+    }
+
+    const tasks = await query.getMany();
+    
+    const total = tasks.length;
+    let synced = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    const token = await this.ensureValidJiraToken(integration);
+
+    for (const task of tasks) {
+      try {
+        const targetStatusId = this.getJiraTargetStatusId(task.status, config);
+
+        if (task.jiraIssueId && !dto.force) {
+          // Update existing issue
+          await this.jiraApiService.updateIssue(
+            config.cloudId,
+            token,
+            task.jiraIssueKey!,
+            {
+              summary: `${task.type}: ${task.description}`,
+              description: this.buildJiraIssueDescription(task),
+            },
+          );
+
+          // Handle status transition if needed
+          if (targetStatusId) {
+            try {
+              await this.transitionJiraIssue(
+                config.cloudId,
+                token,
+                task.jiraIssueKey!,
+                task.status,
+                config,
+              );
+            } catch (transitionError) {
+              this.logger.warn(`Failed to transition issue ${task.jiraIssueKey}: ${transitionError.message}`);
+            }
+          }
+
+          task.jiraIssueUrl = this.jiraApiService.getIssueBrowseUrl(config.siteUrl!, task.jiraIssueKey!);
+        } else {
+          // Create new issue
+          const issue = await this.jiraApiService.createIssue(config.cloudId, token, {
+            projectId: config.projectId,
+            issueTypeId: config.issueTypeId,
+            summary: `${task.type}: ${task.description}`,
+            description: this.buildJiraIssueDescription(task),
+          });
+
+          task.jiraIssueId = issue.id;
+          task.jiraIssueKey = issue.key;
+          task.jiraIssueUrl = this.jiraApiService.getIssueBrowseUrl(config.siteUrl!, issue.key);
+
+          // Try to transition to correct status
+          if (targetStatusId && task.status !== 'todo') {
+            try {
+              await this.transitionJiraIssue(
+                config.cloudId,
+                token,
+                issue.key,
+                task.status,
+                config,
+              );
+            } catch (transitionError) {
+              this.logger.warn(`Failed to transition new issue ${issue.key}: ${transitionError.message}`);
+            }
+          }
+        }
+
+        task.jiraSyncStatus = 'synced';
+        task.jiraLastSyncedAt = new Date();
+        task.jiraSyncError = undefined;
+        await this.taskRepository.save(task);
+
+        synced++;
+
+        // Rate limiting - Jira allows ~100 requests per minute
+        if (synced % 30 === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+      } catch (error) {
+        failed++;
+        errors.push(`Task ${task.id}: ${error.message}`);
+        
+        task.jiraSyncStatus = 'error';
+        task.jiraSyncError = error.message;
+        await this.taskRepository.save(task);
+      }
+    }
+
+    // Update last sync time
+    integration.lastSyncAt = new Date();
+    await this.integrationRepository.save(integration);
+
+    return { synced, failed, total, errors };
+  }
+
+  /**
+   * Sync a single task to Jira
+   */
+  async syncTaskToJira(taskId: string, userId: string): Promise<Task> {
+    const task = await this.taskRepository.findOne({
+      where: { id: taskId },
+      relations: ['repository', 'repository.user'],
+    });
+
+    if (!task) {
+      throw new NotFoundException('Task not found');
+    }
+
+    // Find active Jira integration for this repository (repo-specific only)
+    const integration = await this.integrationRepository
+      .createQueryBuilder('integration')
+      .addSelect('integration.accessToken')
+      .addSelect('integration.refreshToken')
+      .where('integration.userId = :userId', { userId })
+      .andWhere('integration.provider = :provider', { provider: 'jira' })
+      .andWhere('integration.status = :status', { status: 'active' })
+      .andWhere('integration.repositoryId = :repoId', { repoId: task.repository.id })
+      .andWhere('integration.isConfigured = :isConfigured', { isConfigured: true })
+      .getOne();
+
+    if (!integration) {
+      throw new HttpException(
+        'No active Jira integration found',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+    const config = integration.config as JiraConfig;
+
+    try {
+      const token = await this.ensureValidJiraToken(integration);
+
+      if (!config.cloudId || !config.projectId || !config.issueTypeId) {
+        throw new HttpException(
+          'Jira project not fully configured',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      if (task.jiraIssueId) {
+        // Update existing issue
+        const updatedIssue = await this.jiraApiService.updateIssue(
+          config.cloudId,
+          token,
+          task.jiraIssueKey!,
+          {
+            summary: `${task.type}: ${task.description}`,
+            description: this.buildJiraIssueDescription(task),
+          },
+        );
+
+        // Handle status change if needed
+        const targetStatusId = this.getJiraTargetStatusId(task.status, config);
+        if (targetStatusId && updatedIssue.fields.status.id !== targetStatusId) {
+          await this.transitionJiraIssue(config.cloudId, token, task.jiraIssueKey!, task.status, config);
+        }
+
+        task.jiraIssueUrl = this.jiraApiService.getIssueBrowseUrl(config.siteUrl!, updatedIssue.key);
+        task.jiraSyncStatus = 'synced';
+        task.jiraLastSyncedAt = new Date();
+        task.jiraSyncError = undefined;
+      } else {
+        // Create new issue
+        const issue = await this.jiraApiService.createIssue(config.cloudId, token, {
+          projectId: config.projectId,
+          issueTypeId: config.issueTypeId,
+          summary: `${task.type}: ${task.description}`,
+          description: this.buildJiraIssueDescription(task),
+        });
+
+        task.jiraIssueId = issue.id;
+        task.jiraIssueKey = issue.key;
+        task.jiraIssueUrl = this.jiraApiService.getIssueBrowseUrl(config.siteUrl!, issue.key);
+        task.jiraSyncStatus = 'synced';
+        task.jiraLastSyncedAt = new Date();
+        task.jiraSyncError = undefined;
+      }
+
+      return await this.taskRepository.save(task);
+    } catch (error) {
+      this.logger.error('Failed to sync task to Jira', error);
+      
+      task.jiraSyncStatus = 'error';
+      task.jiraSyncError = error.message;
+      await this.taskRepository.save(task);
+
+      throw new HttpException(
+        'Failed to sync task to Jira',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  /**
+   * Handle Jira webhook events
+   */
+  async handleJiraWebhook(
+    webhookData: JiraWebhookEvent,
+    rawBody?: string,
+    signatureHeader?: string,
+    callbackUrl?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const startTime = Date.now();
+    let context: Partial<WebhookContext> = {
+      provider: 'jira',
+      actionType: webhookData.webhookEvent,
+      cardId: webhookData.issue?.id,
+      timestamp: new Date(),
+    };
+
+    try {
+      // 1. Security validation
+      if (rawBody && callbackUrl) {
+        const validation = await this.jiraWebhookSecurityService.validateWebhook(
+          rawBody,
+          signatureHeader,
+          callbackUrl,
+          webhookData,
+        );
+
+        if (!validation.isValid) {
+          this.logWebhook('rejected', context, validation.error || 'Validation failed');
+          
+          if (validation.isDuplicate) {
+            return { success: true, message: 'Duplicate webhook (already processed)' };
+          }
+          if (validation.isStale) {
+            return { success: false, message: 'Stale webhook rejected' };
+          }
+          return { success: false, message: validation.error || 'Validation failed' };
+        }
+
+        context.webhookId = validation.webhookId;
+      }
+
+      const issue = webhookData.issue;
+      if (!issue?.id) {
+        this.logWebhook('skipped', context, 'No issue data');
+        return { success: true, message: 'No issue to process' };
+      }
+
+      // 2. Parse event type
+      const eventInfo = this.jiraWebhookSecurityService.parseEventType(webhookData);
+      context.actionType = eventInfo.action;
+
+      this.logger.log(`🔍 Jira webhook: issue=${issue.key}, event=${eventInfo.action}, project=${issue.fields.project.key}`);
+
+      // 3. Find integration by project
+      const integration = await this.findIntegrationByJiraProject(issue.fields.project.key);
+      
+      if (!integration) {
+        this.logger.warn(`❌ No integration found for Jira project: ${issue.fields.project.key}`);
+        this.logWebhook('skipped', context, `No integration for project ${issue.fields.project.key}`);
+        return { success: false, message: `No integration found for project ${issue.fields.project.key}` };
+      }
+
+      this.logger.log(`✅ Found integration ${integration.id} for project ${issue.fields.project.key}`);
+
+      if (integration.status !== 'active') {
+        this.logWebhook('skipped', context, `Integration status: ${integration.status}`);
+        return { success: false, message: 'Integration is not active' };
+      }
+
+      context.integrationId = integration.id;
+      context.userId = integration.user?.id;
+
+      // 4. Acquire distributed lock
+      const lockAcquired = await this.jiraWebhookSecurityService.acquireLock(issue.id);
+      if (!lockAcquired) {
+        this.logWebhook('deferred', context, 'Issue locked by another process');
+        await this.jiraWebhookSecurityService.queueForRetry(
+          webhookData,
+          'Issue locked by concurrent operation',
+          0,
+        );
+        return { success: true, message: 'Queued for processing (issue locked)' };
+      }
+
+      try {
+        // 5. Process based on event type
+        switch (eventInfo.action) {
+          case 'updated':
+            await this.handleJiraIssueUpdate(webhookData, integration, eventInfo, context);
+            break;
+          case 'deleted':
+            await this.handleJiraIssueDelete(issue.id, context);
+            break;
+          case 'created':
+            // Ignore created events - we create issues, not the other way
+            this.logWebhook('skipped', context, 'Issue created event ignored');
+            break;
+          default:
+            this.logWebhook('skipped', context, `Unhandled action: ${eventInfo.action}`);
+        }
+
+        // 6. Mark as processed
+        if (context.webhookId) {
+          await this.jiraWebhookSecurityService.markAsProcessed(context.webhookId, {
+            id: context.webhookId,
+            processedAt: new Date(),
+            actionType: eventInfo.action,
+            cardId: issue.id,
+            result: 'success',
+          });
+        }
+
+        const duration = Date.now() - startTime;
+        this.logWebhook('success', context, `Processed in ${duration}ms`);
+        return { success: true, message: 'Webhook processed successfully' };
+
+      } finally {
+        await this.jiraWebhookSecurityService.releaseLock(issue.id);
+      }
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+      this.logWebhook('error', context, error.message);
+
+      await this.jiraWebhookSecurityService.queueForRetry(webhookData, error.message, 0);
+
+      if (context.webhookId) {
+        await this.jiraWebhookSecurityService.markAsProcessed(context.webhookId, {
+          id: context.webhookId,
+          processedAt: new Date(),
+          actionType: context.actionType || 'unknown',
+          cardId: context.cardId || 'unknown',
+          result: 'failed',
+          error: error.message,
+        });
+      }
+
+      return { success: false, message: error.message };
+    }
+  }
+
+  /**
+   * Process Jira webhook with retry context
+   */
+  private async processJiraWebhookWithRetry(payload: JiraWebhookEvent, retryCount: number): Promise<void> {
+    try {
+      const result = await this.handleJiraWebhook(payload);
+      
+      if (!result.success && retryCount < 5) {
+        await this.jiraWebhookSecurityService.queueForRetry(payload, result.message, retryCount);
+      }
+    } catch (error) {
+      this.logger.error(`Jira retry processing failed: ${error.message}`);
+      if (retryCount < 5) {
+        await this.jiraWebhookSecurityService.queueForRetry(payload, error.message, retryCount);
+      }
+    }
+  }
+
+  /**
+   * Handle Jira issue update
+   */
+  private async handleJiraIssueUpdate(
+    webhookData: JiraWebhookEvent,
+    integration: Integration,
+    eventInfo: { action: string; hasStatusChange: boolean; statusChange?: { from: string; to: string } },
+    context: Partial<WebhookContext>,
+  ): Promise<void> {
+    const issue = webhookData.issue;
+    const config = integration.config as JiraConfig;
+
+    this.logger.log(`🔄 handleJiraIssueUpdate: Looking for task with jiraIssueId="${issue.id}"`);
+
+    const task = await this.taskRepository.findOne({
+      where: { jiraIssueId: issue.id },
+      relations: ['repository', 'repository.user'],
+    });
+
+    if (!task) {
+      this.logger.warn(`❌ Task not found for Jira issue ${issue.key} (id: ${issue.id})`);
+      this.logWebhook('skipped', context, `Task not found for issue ${issue.key}`);
+      return;
+    }
+
+    this.logger.log(`✅ Found task ${task.id} for Jira issue ${issue.key}`);
+
+    context.taskId = task.id;
+    context.userId = task.repository.user?.id;
+
+    let taskUpdated = false;
+    let statusChange: { from: string; to: string } | null = null;
+
+    // Handle status change
+    if (eventInfo.hasStatusChange && eventInfo.statusChange) {
+      this.logger.log(`📊 Status change detected: Jira status ID is now ${issue.fields.status.id} (${issue.fields.status.name})`);
+      this.logger.log(`📊 Config status IDs: todo=${config.todoStatusId}, inProgress=${config.inProgressStatusId}, done=${config.doneStatusId}`);
+      
+      const newStatus = this.mapJiraStatusToTaskStatus(
+        issue.fields.status.id,
+        config,
+      );
+
+      this.logger.log(`📊 Mapped Jira status to task status: ${newStatus}`);
+
+      if (newStatus && newStatus !== task.status) {
+        statusChange = { from: task.status, to: newStatus };
+        task.status = newStatus;
+        taskUpdated = true;
+        this.logger.log(
+          `✅ Updated task ${task.id} status: ${statusChange.from} → ${statusChange.to} (from Jira)`,
+        );
+      } else {
+        this.logger.log(`⏭️ No status change needed (current: ${task.status}, mapped: ${newStatus})`);
+      }
+    }
+
+    // Handle summary change
+    const changes = this.jiraWebhookSecurityService.extractChanges(webhookData);
+    if (changes.summary) {
+      const newSummary = changes.summary.to as string;
+      // Try to parse "TYPE: description" format
+      const match = newSummary.match(/^([A-Z]+):\s*(.+)$/);
+      if (match) {
+        const [, type, description] = match;
+        task.type = type;
+        task.description = description;
+        taskUpdated = true;
+      } else {
+        task.description = newSummary;
+        taskUpdated = true;
+      }
+    }
+
+    if (taskUpdated) {
+      task.jiraLastSyncedAt = new Date();
+      await this.taskRepository.save(task);
+
+      // Notify user
+      if (statusChange && context.userId) {
+        await this.notificationsService.emit(context.userId, {
+          type: NotificationType.TASK_UPDATED,
+          title: 'Task Updated from Jira',
+          message: `Task "${task.description.substring(0, 50)}..." status changed to ${statusChange.to}`,
+          data: {
+            taskId: task.id,
+            source: 'jira',
+            statusChange,
+            issueKey: issue.key,
+          },
+          timestamp: new Date(),
+        });
+      }
+    }
+  }
+
+  /**
+   * Handle Jira issue deletion
+   */
+  private async handleJiraIssueDelete(
+    issueId: string,
+    context: Partial<WebhookContext>,
+  ): Promise<void> {
+    const task = await this.taskRepository.findOne({
+      where: { jiraIssueId: issueId },
+      relations: ['repository', 'repository.user'],
+    });
+
+    if (!task) {
+      this.logWebhook('skipped', context, `Task not found for deleted issue ${issueId}`);
+      return;
+    }
+
+    context.taskId = task.id;
+    context.userId = task.repository.user?.id;
+
+    // Clear Jira association but don't delete the task
+    task.jiraIssueId = undefined;
+    task.jiraIssueKey = undefined;
+    task.jiraIssueUrl = undefined;
+    task.jiraSyncStatus = undefined;
+    task.jiraLastSyncedAt = undefined;
+    task.jiraSyncError = undefined;
+
+    await this.taskRepository.save(task);
+    
+    this.logger.log(`Cleared Jira association for task ${task.id} (issue deleted)`);
+
+    // Notify user
+    if (context.userId) {
+      await this.notificationsService.emit(context.userId, {
+        type: NotificationType.TASK_UPDATED,
+        title: 'Jira Issue Deleted',
+        message: `Jira issue for task "${task.description.substring(0, 50)}..." was deleted`,
+        data: {
+          taskId: task.id,
+          source: 'jira',
+          action: 'issue_deleted',
+        },
+        timestamp: new Date(),
+      });
+    }
+  }
+
+  /**
+   * Find integration by Jira project key
+   */
+  private async findIntegrationByJiraProject(projectKey: string): Promise<Integration | null> {
+    if (!projectKey) {
+      this.logger.warn('findIntegrationByJiraProject: No project key provided');
+      return null;
+    }
+
+    this.logger.debug(`findIntegrationByJiraProject: Searching for projectKey="${projectKey}"`);
+
+    const integration = await this.integrationRepository
+      .createQueryBuilder('integration')
+      .addSelect('integration.accessToken')
+      .addSelect('integration.refreshToken')
+      .leftJoinAndSelect('integration.user', 'user')
+      .where('integration.provider = :provider', { provider: 'jira' })
+      .andWhere('integration.status = :status', { status: 'active' })
+      .andWhere('integration.isConfigured = :isConfigured', { isConfigured: true })
+      .andWhere('integration.repositoryId IS NOT NULL')
+      .andWhere("integration.config->>'projectKey' = :projectKey", { projectKey })
+      .getOne();
+
+    if (!integration) {
+      // Debug: Let's see if there's any Jira integration at all
+      const anyJiraIntegration = await this.integrationRepository
+        .createQueryBuilder('integration')
+        .where('integration.provider = :provider', { provider: 'jira' })
+        .getMany();
+      
+      this.logger.debug(`findIntegrationByJiraProject: Total Jira integrations: ${anyJiraIntegration.length}`);
+      for (const int of anyJiraIntegration) {
+        const config = int.config as any;
+        this.logger.debug(
+          `  - ID: ${int.id}, status: ${int.status}, isConfigured: ${int.isConfigured}, ` +
+          `repoId: ${int.repository?.id || 'NULL'}, projectKey: ${config?.projectKey || 'NONE'}`
+        );
+      }
+    }
+
+    return integration;
+  }
+
+  /**
+   * Ensure Jira token is valid, refresh if needed
+   */
+  private async ensureValidJiraToken(integration: Integration): Promise<string> {
+    const token = integration.decryptAccessToken();
+
+    if (!token) {
+      throw new HttpException('Invalid Jira token', HttpStatus.UNAUTHORIZED);
+    }
+
+    // Check if token is expired or about to expire
+    const expiresAt = integration.tokenExpiresAt;
+    const now = new Date();
+    const buffer = 5 * 60 * 1000; // 5 minutes
+
+    if (expiresAt && new Date(expiresAt).getTime() - now.getTime() < buffer) {
+      this.logger.log('Jira token expired or expiring soon, refreshing...');
+
+      const refreshToken = integration.decryptRefreshToken();
+      if (!refreshToken) {
+        throw new HttpException(
+          'Jira token expired and no refresh token available',
+          HttpStatus.UNAUTHORIZED,
+        );
+      }
+
+      const tokens = await this.jiraApiService.refreshAccessToken(refreshToken);
+
+      // Update integration with new tokens
+      integration.accessToken = tokens.access_token;
+      if (tokens.refresh_token) {
+        integration.refreshToken = tokens.refresh_token;
+      }
+      integration.tokenExpiresAt = new Date(Date.now() + tokens.expires_in * 1000);
+      
+      await this.integrationRepository.save(integration);
+
+      return tokens.access_token;
+    }
+
+    return token;
+  }
+
+  /**
+   * Get target Jira status ID based on task status
+   */
+  private getJiraTargetStatusId(status: string, config: JiraConfig): string | undefined {
+    switch (status) {
+      case 'open':
+      case 'pending':
+        return config.todoStatusId;
+      case 'in-progress':
+        return config.inProgressStatusId || config.todoStatusId;
+      case 'done':
+      case 'completed':
+        return config.doneStatusId || config.todoStatusId;
+      default:
+        return config.todoStatusId;
+    }
+  }
+
+  /**
+   * Map Jira status ID to task status
+   */
+  private mapJiraStatusToTaskStatus(statusId: string, config: JiraConfig): string | null {
+    if (statusId === config.todoStatusId) {
+      return 'open';
+    } else if (statusId === config.inProgressStatusId) {
+      return 'in-progress';
+    } else if (statusId === config.doneStatusId) {
+      return 'done';
+    }
+    return null;
+  }
+
+  /**
+   * Transition Jira issue to target status
+   */
+  private async transitionJiraIssue(
+    cloudId: string,
+    token: string,
+    issueKey: string,
+    targetStatus: string,
+    config: JiraConfig,
+  ): Promise<void> {
+    // Get target transition ID based on status
+    let transitionId: string | undefined;
+    switch (targetStatus) {
+      case 'open':
+        transitionId = config.toTodoTransitionId;
+        break;
+      case 'in-progress':
+        transitionId = config.toInProgressTransitionId;
+        break;
+      case 'done':
+        transitionId = config.toDoneTransitionId;
+        break;
+    }
+
+    if (!transitionId) {
+      // Try to find the transition dynamically
+      const transitions = await this.jiraApiService.getTransitions(cloudId, token, issueKey);
+      const targetStatusId = this.getJiraTargetStatusId(targetStatus, config);
+      
+      const transition = transitions.find(t => t.to.id === targetStatusId);
+      if (transition) {
+        transitionId = transition.id;
+      }
+    }
+
+    if (transitionId) {
+      await this.jiraApiService.transitionIssue(cloudId, token, issueKey, transitionId);
+    } else {
+      this.logger.warn(`No transition found for status ${targetStatus} on issue ${issueKey}`);
+    }
+  }
+
+  /**
+   * Build Jira issue description from task (returns plain text for ADF conversion)
+   */
+  private buildJiraIssueDescription(task: Task): string {
+    const lines = [
+      `Repository: ${task.repository.name}`,
+      `File: ${task.filePath}`,
+      `Line: ${task.lineNumber}`,
+      `Priority: ${task.priority}`,
+      `Status: ${task.status}`,
+      '',
+      'Description:',
+      task.description,
+    ];
+
+    if (task.addedBy) {
+      lines.push('', `Added by: ${task.addedBy}`);
+    }
+
+    if (task.ai_summary) {
+      lines.push('', 'AI Summary:', task.ai_summary);
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Auto-sync a newly created task to Jira (called by TasksService)
+   */
+  async autoSyncNewTaskToJira(taskId: string, userId: string): Promise<void> {
+    try {
+      const task = await this.taskRepository.findOne({
+        where: { id: taskId },
+        relations: ['repository', 'repository.user'],
+      });
+
+      if (!task) {
+        return;
+      }
+
+      // Find active Jira integration with auto-create enabled
+      const integration = await this.integrationRepository
+        .createQueryBuilder('integration')
+        .addSelect('integration.accessToken')
+        .addSelect('integration.refreshToken')
+        .where('integration.userId = :userId', { userId })
+        .andWhere('integration.provider = :provider', { provider: 'jira' })
+        .andWhere('integration.status = :status', { status: 'active' })
+        .andWhere(
+          '(integration.repositoryId = :repoId OR integration.repositoryId IS NULL)',
+          { repoId: task.repository.id },
+        )
+        .getOne();
+
+      const config = integration?.config as JiraConfig;
+      if (!config?.autoCreateCards || !config?.syncEnabled) {
+        return; // Auto-sync not enabled
+      }
+
+      // Sync the task to Jira
+      await this.syncTaskToJira(taskId, userId);
+    } catch (error) {
+      this.logger.warn(`Auto-sync to Jira failed for task ${taskId}: ${error.message}`);
     }
   }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -28,18 +28,42 @@ export default function SyncConfirmationModal({
   repositoryName,
 }: SyncConfirmationModalProps) {
   const [syncing, setSyncing] = useState(false);
+  const [provider, setProvider] = useState<'trello' | 'jira' | null>(null);
+  const [loading, setLoading] = useState(false);
   const [syncResult, setSyncResult] = useState<{
     synced: number;
     failed: number;
     total: number;
   } | null>(null);
 
+  // Fetch the integration for this repository to determine provider
+  useEffect(() => {
+    if (open && repositoryId) {
+      setLoading(true);
+      axios
+        .get(`/integrations?repositoryId=${repositoryId}`)
+        .then((res) => {
+          const integration = res.data.find((i: any) => i.repository?.id === repositoryId);
+          if (integration) {
+            setProvider(integration.provider);
+          }
+        })
+        .catch(console.error)
+        .finally(() => setLoading(false));
+    }
+  }, [open, repositoryId]);
+
   const handleSyncNow = async () => {
     setSyncing(true);
     setSyncResult(null);
 
     try {
-      const response = await axios.post('/integrations/sync/repository', {
+      // Use the appropriate sync endpoint based on provider
+      const endpoint = provider === 'jira' 
+        ? '/integrations/jira/sync/repository' 
+        : '/integrations/sync/repository';
+      
+      const response = await axios.post(endpoint, {
         repositoryId,
       });
 
@@ -47,8 +71,9 @@ export default function SyncConfirmationModal({
 
       setSyncResult({ synced, failed, total });
 
+      const providerName = provider === 'jira' ? 'Jira' : 'Trello';
       if (failed === 0) {
-        toast.success(`Successfully synced ${synced} task${synced !== 1 ? 's' : ''} to Trello!`);
+        toast.success(`Successfully synced ${synced} task${synced !== 1 ? 's' : ''} to ${providerName}!`);
       } else {
         toast.warning(
           `Synced ${synced} task${synced !== 1 ? 's' : ''}, but ${failed} failed.`
@@ -72,20 +97,26 @@ export default function SyncConfirmationModal({
     setSyncResult(null);
   };
 
+  const providerName = provider === 'jira' ? 'Jira' : 'Trello';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Sync Tasks to Trello?</DialogTitle>
+          <DialogTitle>Sync Tasks to {providerName}?</DialogTitle>
           <DialogDescription>
-            Would you like to sync existing tasks from <strong>{repositoryName}</strong> to Trello now?
+            Would you like to sync existing tasks from <strong>{repositoryName}</strong> to {providerName} now?
           </DialogDescription>
         </DialogHeader>
 
-        {!syncResult ? (
+        {loading ? (
+          <div className="py-4 flex justify-center">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : !syncResult ? (
           <div className="py-4">
             <p className="text-sm text-muted-foreground">
-              This will create Trello cards for all tasks in this repository that haven't been synced yet.
+              This will create {provider === 'jira' ? 'Jira issues' : 'Trello cards'} for all tasks in this repository that haven&apos;t been synced yet.
               You can also do this later from the repository tasks page.
             </p>
           </div>
@@ -114,10 +145,10 @@ export default function SyncConfirmationModal({
         <DialogFooter>
           {!syncResult ? (
             <>
-              <Button variant="outline" onClick={handleSyncLater} disabled={syncing}>
+              <Button variant="outline" onClick={handleSyncLater} disabled={syncing || loading}>
                 Sync Later
               </Button>
-              <Button onClick={handleSyncNow} disabled={syncing}>
+              <Button onClick={handleSyncNow} disabled={syncing || loading || !provider}>
                 {syncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {syncing ? 'Syncing...' : 'Sync Now'}
               </Button>

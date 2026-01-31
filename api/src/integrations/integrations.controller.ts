@@ -23,6 +23,7 @@ import { TrelloWebhookSecurityService } from './services/trello-webhook-security
 import { CreateIntegrationDto, UpdateIntegrationDto, SyncTasksDto, TrelloConfigDto } from './dto/integration.dto';
 import { Public } from './decorators/public.decorator';
 import { Request } from 'express';
+import { TrelloConfig } from './interfaces/provider-config.interface';
 
 @Controller('integrations')
 export class IntegrationsController {
@@ -37,8 +38,37 @@ export class IntegrationsController {
    */
   @Get()
   @UseGuards(AuthGuard('jwt'))
-  async findAll(@Req() req, @Query('provider') provider?: string) {
+  async findAll(@Req() req, @Query('provider') provider?: string, @Query('repositoryId') repositoryId?: string) {
+    if (repositoryId) {
+      return this.integrationsService.getRepositoryIntegrations(req.user.id, repositoryId);
+    }
     return this.integrationsService.findAll(req.user.id, provider);
+  }
+
+  /**
+   * Get user-level OAuth connections (not linked to any repository)
+   */
+  @Get('connections')
+  @UseGuards(AuthGuard('jwt'))
+  async getUserConnections(@Req() req) {
+    return this.integrationsService.getUserConnections(req.user.id);
+  }
+
+  /**
+   * Link a repository to an existing OAuth connection
+   */
+  @Post('link/:provider/:repositoryId')
+  @UseGuards(AuthGuard('jwt'))
+  async linkRepository(
+    @Req() req,
+    @Param('provider') provider: 'trello' | 'jira',
+    @Param('repositoryId') repositoryId: string,
+  ) {
+    return this.integrationsService.linkRepositoryToProvider(
+      req.user.id,
+      repositoryId,
+      provider,
+    );
   }
 
   /**
@@ -75,16 +105,15 @@ export class IntegrationsController {
 
   /**
    * Complete Trello OAuth - save the token returned from frontend
-   * Frontend receives token from Trello redirect and sends it here
+   * Creates a user-level OAuth connection (no repository linked)
    */
   @Post('trello/callback')
   @UseGuards(AuthGuard('jwt'))
-  async handleOAuthCallback(@Req() req, @Body() body: { token: string; repositoryId?: string }) {
+  async handleOAuthCallback(@Req() req, @Body() body: { token: string }) {
     console.log('🔍 Trello callback received:', {
       hasUser: !!req.user,
       userId: req.user?.id,
       hasToken: !!body.token,
-      repositoryId: body.repositoryId,
     });
 
     const apiKey = process.env.TRELLO_API_KEY;
@@ -98,16 +127,22 @@ export class IntegrationsController {
       throw new HttpException('User not authenticated', HttpStatus.UNAUTHORIZED);
     }
 
+    // Check if user already has a Trello connection
+    const existingConnection = await this.integrationsService.hasUserConnection(req.user.id, 'trello');
+    if (existingConnection) {
+      throw new HttpException('Trello is already connected', HttpStatus.BAD_REQUEST);
+    }
+
     // Verify the token is valid by fetching member info
     await this.trelloApiService.getMemberInfo(apiKey, body.token);
 
-    // Create the integration
+    // Create user-level OAuth connection (no repository)
     const createDto: CreateIntegrationDto = {
       provider: 'trello',
       accessToken: body.token,
-      repositoryId: body.repositoryId, // ✅ Optional: link to specific repository
+      // repositoryId is NOT set - this is a user-level connection
       config: {
-        syncEnabled: false, // User needs to configure board/lists first
+        syncEnabled: false,
         autoCreateCards: false,
         autoMoveCards: false,
       },
@@ -408,29 +443,30 @@ export class IntegrationsController {
     }
 
     const integration = integrations[0];
+    const config = integration.config as TrelloConfig;
     
     return {
       integrationId: integration.id,
-      boardId: integration.config?.boardId,
-      boardName: integration.config?.boardName,
-      webhookId: integration.config?.webhookId,
-      webhookExists: !!integration.config?.webhookId,
+      boardId: config?.boardId,
+      boardName: config?.boardName,
+      webhookId: config?.webhookId,
+      webhookExists: !!config?.webhookId,
       callbackUrl: `${process.env.BACKEND_URL || 'http://localhost:3000'}/integrations/webhook/trello`,
       lists: {
         todo: {
-          id: integration.config?.todoListId,
-          name: integration.config?.todoListName,
+          id: config?.todoListId,
+          name: config?.todoListName,
         },
         inProgress: {
-          id: integration.config?.inProgressListId,
-          name: integration.config?.inProgressListName,
+          id: config?.inProgressListId,
+          name: config?.inProgressListName,
         },
         done: {
-          id: integration.config?.doneListId,
-          name: integration.config?.doneListName,
+          id: config?.doneListId,
+          name: config?.doneListName,
         },
       },
-      autoMoveCards: integration.config?.autoMoveCards,
+      autoMoveCards: config?.autoMoveCards,
     };
   }
 

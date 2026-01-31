@@ -174,6 +174,21 @@ export class TasksController {
             }
         }
 
+        // ✅ Auto-sync to Jira if status changed and issue exists
+        if (oldStatus !== task.status && task.jiraIssueId && this.integrationsService) {
+            try {
+                await this.integrationsService.syncTaskToJira(taskId, user.userId);
+                this.logger.log(
+                    `✅ Auto-synced task ${taskId} status change (${oldStatus} → ${task.status}) to Jira`
+                );
+            } catch (error) {
+                this.logger.warn(
+                    `⚠️  Failed to auto-sync task ${taskId} to Jira: ${error.message}`
+                );
+                // Don't fail the status update if Jira sync fails
+            }
+        }
+
         return updatedTask;
     }
 

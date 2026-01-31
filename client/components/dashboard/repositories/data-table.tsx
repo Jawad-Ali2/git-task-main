@@ -48,10 +48,11 @@ export type Repository = {
   debt_score: number | null
   isScanning?: boolean
   isPaused?: boolean
-  trelloIntegration?: {
+  integration?: {
     id: string
+    provider: 'trello' | 'jira'
     status: string
-    boardName?: string
+    name?: string
   } | null
 }
 
@@ -79,10 +80,10 @@ export const getColumns = (
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <span className="font-medium">{row.getValue("name")}</span>
-          {row.original.trelloIntegration && (
+          {row.original.integration && (
             <Badge variant="outline" className="flex items-center gap-1">
               <Plug className="h-3 w-3" />
-              Trello
+              {row.original.integration.provider === 'trello' ? 'Trello' : 'Jira'}
             </Badge>
           )}
         </div>

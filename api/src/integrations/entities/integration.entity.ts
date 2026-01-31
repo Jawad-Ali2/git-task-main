@@ -1,7 +1,14 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, BeforeInsert, BeforeUpdate } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Repository } from '../../repositories/entities/repository.entity';
+import { TrelloConfig, JiraConfig } from '../interfaces/provider-config.interface';
 import * as crypto from 'crypto';
+
+/**
+ * Integration configuration type
+ * Supports both Trello and Jira (and future providers)
+ */
+export type IntegrationConfig = TrelloConfig | JiraConfig;
 
 @Entity('integrations')
 export class Integration {
@@ -9,33 +16,19 @@ export class Integration {
   id: string;
 
   @Column({ type: 'varchar', length: 50 })
-  provider: string; // 'trello', 'jira', 'asana', etc. (extensible for future)
+  provider: 'trello' | 'jira' | 'asana'; // Extensible for future providers
 
   @Column({ type: 'text', select: false })
   accessToken: string; // Encrypted OAuth access token
 
   @Column({ type: 'text', nullable: true, select: false })
-  refreshToken?: string; // Encrypted refresh token (if applicable)
+  refreshToken?: string; // Encrypted refresh token (Jira uses this)
 
   @Column({ type: 'timestamp', nullable: true })
-  tokenExpiresAt?: Date; // Token expiration date
+  tokenExpiresAt?: Date; // Token expiration date (Jira tokens expire)
 
   @Column({ type: 'json', nullable: true })
-  config: {
-    boardId?: string;
-    boardName?: string;
-    todoListId?: string; // List for new TODOs
-    todoListName?: string;
-    inProgressListId?: string; // List for in-progress tasks
-    inProgressListName?: string;
-    doneListId?: string; // List for completed tasks
-    doneListName?: string;
-    webhookId?: string; // Trello webhook ID for bi-directional sync
-    syncEnabled?: boolean;
-    autoCreateCards?: boolean;
-    autoMoveCards?: boolean;
-    customFieldMappings?: Record<string, string>;
-  };
+  config: IntegrationConfig;
 
   @ManyToOne(() => User, { nullable: false })
   user: User;
@@ -45,6 +38,9 @@ export class Integration {
 
   @Column({ default: 'active' })
   status: string; // 'active', 'inactive', 'error', 'revoked'
+
+  @Column({ default: false })
+  isConfigured: boolean; // false = OAuth only, true = fully configured with board/project
 
   @Column({ type: 'text', nullable: true })
   lastError?: string; // Store last error message for debugging

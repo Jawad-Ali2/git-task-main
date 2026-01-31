@@ -14,7 +14,11 @@ async function bootstrap() {
 
   // Custom JSON parsing that preserves raw body for webhooks
   app.use((req, res, next) => {
-    if (req.path === '/webhooks/github' || req.path === '/integrations/webhook/trello') {
+    if (
+      req.path === '/webhooks/github' || 
+      req.path === '/integrations/webhook/trello' ||
+      req.path === '/integrations/jira/webhook'
+    ) {
       // For webhook endpoints, store raw body for signature verification
       let data = '';
       req.setEncoding('utf8');

@@ -45,6 +45,13 @@ interface Task {
     lastModifiedBy?: string;
     lastModifiedAt?: string;
     lastModifiedInCommit?: string;
+    // Trello fields
+    trelloCardId?: string;
+    trelloCardUrl?: string;
+    // Jira fields
+    jiraIssueId?: string;
+    jiraIssueKey?: string;
+    jiraIssueUrl?: string;
 }
 
 export default function RepositoryTasksPage() {
@@ -57,7 +64,7 @@ export default function RepositoryTasksPage() {
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
     const [syncing, setSyncing] = useState(false);
-    const [hasTrelloIntegration, setHasTrelloIntegration] = useState(false);
+    const [integration, setIntegration] = useState<{ provider: 'trello' | 'jira' | null; configured: boolean }>({ provider: null, configured: false });
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [isCodeSnippetModalOpen, setIsCodeSnippetModalOpen] = useState(false);
 
@@ -78,18 +85,27 @@ export default function RepositoryTasksPage() {
 
     useEffect(() => {
         fetchTasks();
-        checkTrelloIntegration();
+        checkIntegration();
     }, [repoId]);
 
-    const checkTrelloIntegration = async () => {
+    const checkIntegration = async () => {
         try {
-            const response = await axiosInstance.get('/integrations?provider=trello');
+            // Check for any integration linked to this repository
+            const response = await axiosInstance.get(`/integrations?repositoryId=${repoId}`);
             const repoIntegration = response.data.find(
-                (int: any) => int.repository?.id === repoId && int.config?.boardId
+                (int: any) => int.repository?.id === repoId && int.isConfigured
             );
-            setHasTrelloIntegration(!!repoIntegration);
+            
+            if (repoIntegration) {
+                setIntegration({
+                    provider: repoIntegration.provider,
+                    configured: true,
+                });
+            } else {
+                setIntegration({ provider: null, configured: false });
+            }
         } catch (error) {
-            console.error('Failed to check Trello integration:', error);
+            console.error('Failed to check integration:', error);
         }
     };
 
@@ -140,23 +156,28 @@ export default function RepositoryTasksPage() {
         }
     };
 
-    const handleSyncToTrello = async () => {
-        if (!hasTrelloIntegration) {
-            toast.error('Trello is not configured for this repository');
+    const handleSync = async () => {
+        if (!integration.configured || !integration.provider) {
+            toast.error('No integration configured for this repository');
             return;
         }
 
         setSyncing(true);
         try {
-            const response = await axiosInstance.post('/integrations/sync/repository', {
+            const endpoint = integration.provider === 'jira' 
+                ? '/integrations/jira/sync/repository'
+                : '/integrations/sync/repository';
+            
+            const response = await axiosInstance.post(endpoint, {
                 repositoryId: repoId,
             });
 
             const { synced, failed, total } = response.data;
+            const providerName = integration.provider === 'jira' ? 'Jira' : 'Trello';
 
             if (failed === 0) {
                 toast.success(
-                    `Successfully synced ${synced} of ${total} task${total !== 1 ? 's' : ''} to Trello!`,
+                    `Successfully synced ${synced} of ${total} task${total !== 1 ? 's' : ''} to ${providerName}!`,
                     {
                         description: synced === 0 ? 'All tasks were already synced' : undefined,
                     }
@@ -173,7 +194,8 @@ export default function RepositoryTasksPage() {
             // Refresh tasks to update sync status
             fetchTasks();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to sync tasks to Trello');
+            const providerName = integration.provider === 'jira' ? 'Jira' : 'Trello';
+            toast.error(error.response?.data?.message || `Failed to sync tasks to ${providerName}`);
             console.error('Sync error:', error);
         } finally {
             setSyncing(false);
@@ -219,10 +241,10 @@ export default function RepositoryTasksPage() {
                 description="Tasks for this repository"
             >
                 <div className="flex gap-2">
-                    {hasTrelloIntegration && (
+                    {integration.configured && integration.provider && (
                         <Button
                             variant="outline"
-                            onClick={handleSyncToTrello}
+                            onClick={handleSync}
                             disabled={syncing || tasks.length === 0}
                         >
                             {syncing ? (
@@ -233,7 +255,7 @@ export default function RepositoryTasksPage() {
                             ) : (
                                 <>
                                     <RefreshCw className="h-4 w-4 mr-2" />
-                                    Sync to Trello
+                                    Sync to {integration.provider === 'jira' ? 'Jira' : 'Trello'}
                                 </>
                             )}
                         </Button>

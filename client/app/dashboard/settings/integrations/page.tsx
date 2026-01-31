@@ -3,20 +3,19 @@
 import { useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import {
-  fetchIntegrations,
+  fetchUserConnections,
   getTrelloAuthUrl,
   completeTrelloAuth,
+  getJiraAuthUrl,
+  completeJiraAuth,
   deleteIntegration,
-  syncRepositoryToTrello,
   clearError,
-  clearSyncStatus,
 } from '@/redux/integrationsSlice';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Trash2, Settings, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import { Loader2, Trash2, CheckCircle2, Info } from 'lucide-react';
 import { toast } from 'sonner';
-import TrelloConfigModal from '@/components/trello-config-modal';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,21 +26,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from '@/components/ui/alert';
 
 export default function IntegrationsPage() {
   const dispatch = useAppDispatch();
-  const { integrations, loading, error, syncStatus } = useAppSelector(
+  const { userConnections, loading, error } = useAppSelector(
     (state) => state.integrations
   );
 
-  const [authWindow, setAuthWindow] = useState<Window | null>(null);
-  const [configModalOpen, setConfigModalOpen] = useState(false);
-  const [selectedIntegrationId, setSelectedIntegrationId] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [integrationToDelete, setIntegrationToDelete] = useState<string>('');
+  const [deleteProvider, setDeleteProvider] = useState<'trello' | 'jira'>('trello');
 
   useEffect(() => {
-    dispatch(fetchIntegrations());
+    dispatch(fetchUserConnections());
   }, [dispatch]);
 
   useEffect(() => {
@@ -51,27 +53,10 @@ export default function IntegrationsPage() {
     }
   }, [error, dispatch]);
 
-  useEffect(() => {
-    if (syncStatus.synced > 0 || syncStatus.failed > 0) {
-      if (syncStatus.failed === 0) {
-        toast.success(`Successfully synced ${syncStatus.synced} tasks to Trello!`);
-      } else {
-        toast.warning(
-          `Synced ${syncStatus.synced} tasks, ${syncStatus.failed} failed. Check console for details.`
-        );
-        if (syncStatus.errors.length > 0) {
-          console.error('Sync errors:', syncStatus.errors);
-        }
-      }
-      dispatch(clearSyncStatus());
-    }
-  }, [syncStatus, dispatch]);
-
   const handleConnectTrello = async () => {
     try {
       const authUrl = await dispatch(getTrelloAuthUrl()).unwrap();
 
-      // Open Trello auth in popup
       const width = 600;
       const height = 700;
       const left = (window.innerWidth - width) / 2;
@@ -83,9 +68,6 @@ export default function IntegrationsPage() {
         `width=${width},height=${height},left=${left},top=${top}`
       );
 
-      setAuthWindow(popup);
-
-      // Listen for the callback
       const handleMessage = async (event: MessageEvent) => {
         if (event.origin !== window.location.origin) return;
 
@@ -93,20 +75,10 @@ export default function IntegrationsPage() {
           const token = event.data.token;
 
           try {
-            const integration = await dispatch(
-              completeTrelloAuth(token)
-            ).unwrap();
-
-            toast.success('Trello connected successfully!');
-
-            // Close popup
+            await dispatch(completeTrelloAuth(token)).unwrap();
+            toast.success('Trello connected successfully! You can now link repositories from their settings.');
             popup?.close();
-
-            // Open configuration modal
-            setSelectedIntegrationId(integration.id);
-            setConfigModalOpen(true);
-
-            // Remove event listener
+            dispatch(fetchUserConnections());
             window.removeEventListener('message', handleMessage);
           } catch (err: any) {
             toast.error(err.message || 'Failed to complete authorization');
@@ -120,19 +92,53 @@ export default function IntegrationsPage() {
       };
 
       window.addEventListener('message', handleMessage);
-
-      // Cleanup on unmount
-      return () => {
-        window.removeEventListener('message', handleMessage);
-      };
     } catch (err: any) {
       toast.error(err.message || 'Failed to start authorization');
     }
   };
 
-  const handleConfigure = (integrationId: string) => {
-    setSelectedIntegrationId(integrationId);
-    setConfigModalOpen(true);
+  const handleConnectJira = async () => {
+    try {
+      const authUrl = await dispatch(getJiraAuthUrl()).unwrap();
+
+      const width = 600;
+      const height = 700;
+      const left = (window.innerWidth - width) / 2;
+      const top = (window.innerHeight - height) / 2;
+
+      const popup = window.open(
+        authUrl,
+        'Jira Authorization',
+        `width=${width},height=${height},left=${left},top=${top}`
+      );
+
+      const handleMessage = async (event: MessageEvent) => {
+        if (event.origin !== window.location.origin) return;
+
+        if (event.data.type === 'jira-code') {
+          const code = event.data.code;
+
+          try {
+            await dispatch(completeJiraAuth(code)).unwrap();
+            toast.success('Jira connected successfully! You can now link repositories from their settings.');
+            popup?.close();
+            dispatch(fetchUserConnections());
+            window.removeEventListener('message', handleMessage);
+          } catch (err: any) {
+            toast.error(err.message || 'Failed to complete Jira authorization');
+            popup?.close();
+          }
+        } else if (event.data.type === 'jira-error') {
+          toast.error(event.data.error || 'Jira authorization failed');
+          popup?.close();
+          window.removeEventListener('message', handleMessage);
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start Jira authorization');
+    }
   };
 
   const handleDelete = async () => {
@@ -140,29 +146,17 @@ export default function IntegrationsPage() {
 
     try {
       await dispatch(deleteIntegration(integrationToDelete)).unwrap();
-      toast.success('Integration removed successfully');
+      toast.success('Integration disconnected successfully');
       setDeleteDialogOpen(false);
       setIntegrationToDelete('');
+      dispatch(fetchUserConnections());
     } catch (err: any) {
-      toast.error(err.message || 'Failed to delete integration');
+      toast.error(err.message || 'Failed to disconnect integration');
     }
   };
 
-  const handleSync = async (repositoryId?: string) => {
-    try {
-      await dispatch(
-        syncRepositoryToTrello({
-          repositoryId,
-          force: false,
-        })
-      ).unwrap();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to start sync');
-    }
-  };
-
-  const trelloIntegration = integrations.find((i) => i.provider === 'trello');
-  const isConfigured = trelloIntegration?.config?.boardId && trelloIntegration?.config?.todoListId;
+  const trelloConnection = userConnections.find((i) => i.provider === 'trello');
+  const jiraConnection = userConnections.find((i) => i.provider === 'jira');
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
@@ -170,11 +164,24 @@ export default function IntegrationsPage() {
         <div>
           <h1 className="text-3xl font-bold">Integrations</h1>
           <p className="text-muted-foreground mt-2">
-            Connect external services to sync your tasks and automate workflows
+            Connect external services to sync your tasks
           </p>
         </div>
 
-        {/* Trello Integration Card */}
+        {/* Info Alert */}
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertTitle>How it works</AlertTitle>
+          <AlertDescription>
+            <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
+              <li>Connect your Trello or Jira account here (OAuth authorization)</li>
+              <li>Go to a repository&apos;s settings to link it to a specific board/project</li>
+              <li>Configure which lists/statuses to use for task syncing</li>
+            </ol>
+          </AlertDescription>
+        </Alert>
+
+        {/* Trello Connection Card */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -187,31 +194,23 @@ export default function IntegrationsPage() {
                 <div>
                   <CardTitle>Trello</CardTitle>
                   <CardDescription>
-                    Automatically create and sync Trello cards from your TODOs
+                    Sync tasks to Trello boards
                   </CardDescription>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {trelloIntegration && (
-                  <Badge
-                    variant={trelloIntegration.status === 'active' ? 'default' : 'destructive'}
-                  >
-                    {trelloIntegration.status === 'active' ? (
-                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                    ) : (
-                      <AlertCircle className="w-3 h-3 mr-1" />
-                    )}
-                    {trelloIntegration.status}
-                  </Badge>
-                )}
-              </div>
+              {trelloConnection && (
+                <Badge variant={trelloConnection.status === 'active' ? 'default' : 'destructive'}>
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Connected
+                </Badge>
+              )}
             </div>
           </CardHeader>
           <CardContent>
-            {!trelloIntegration ? (
+            {!trelloConnection ? (
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
-                  Connect your Trello account to automatically create cards for TODOs and keep them in sync.
+                  Connect your Trello account to enable task syncing with Trello boards.
                 </p>
                 <Button onClick={handleConnectTrello} disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -220,124 +219,91 @@ export default function IntegrationsPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm font-medium">Board</p>
-                    <p className="text-sm text-muted-foreground">
-                      {trelloIntegration.config?.boardName || 'Not configured'}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">TODO List</p>
-                    <p className="text-sm text-muted-foreground">
-                      {trelloIntegration.config?.todoListName || 'Not configured'}
-                    </p>
-                  </div>
-                  {trelloIntegration.config?.inProgressListName && (
-                    <div>
-                      <p className="text-sm font-medium">In Progress List</p>
-                      <p className="text-sm text-muted-foreground">
-                        {trelloIntegration.config.inProgressListName}
-                      </p>
-                    </div>
-                  )}
-                  {trelloIntegration.config?.doneListName && (
-                    <div>
-                      <p className="text-sm font-medium">Done List</p>
-                      <p className="text-sm text-muted-foreground">
-                        {trelloIntegration.config.doneListName}
-                      </p>
-                    </div>
-                  )}
+                <p className="text-sm text-muted-foreground">
+                  ✓ Trello account connected. Go to a repository&apos;s settings to link it to a Trello board.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Connected since: {new Date(trelloConnection.createdAt).toLocaleDateString()}
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setIntegrationToDelete(trelloConnection.id);
+                    setDeleteProvider('trello');
+                    setDeleteDialogOpen(true);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Disconnect
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Jira Connection Card */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M11.571 11.513H0a5.218 5.218 0 0 0 5.232 5.215h2.13v2.057A5.215 5.215 0 0 0 12.575 24V12.518a1.005 1.005 0 0 0-1.005-1.005zm5.723-5.756H5.736a5.215 5.215 0 0 0 5.215 5.214h2.129v2.058a5.218 5.218 0 0 0 5.215 5.214V6.758a1.001 1.001 0 0 0-1.001-1.001zM23.013 0H11.455a5.215 5.215 0 0 0 5.215 5.215h2.129v2.057A5.215 5.215 0 0 0 24 12.483V1.005A1.005 1.005 0 0 0 23.013 0z"/>
+                  </svg>
                 </div>
-
-                {trelloIntegration.config && (
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">
-                      Auto-Create: {trelloIntegration.config.autoCreateCards ? 'On' : 'Off'}
-                    </Badge>
-                    <Badge variant="outline">
-                      Auto-Move: {trelloIntegration.config.autoMoveCards ? 'On' : 'Off'}
-                    </Badge>
-                    <Badge variant="outline">
-                      Sync: {trelloIntegration.config.syncEnabled ? 'Enabled' : 'Disabled'}
-                    </Badge>
-                  </div>
-                )}
-
-                {trelloIntegration.lastSyncAt && (
-                  <p className="text-xs text-muted-foreground">
-                    Last synced:{' '}
-                    {new Date(trelloIntegration.lastSyncAt).toLocaleString()}
-                  </p>
-                )}
-
-                {trelloIntegration.lastError && (
-                  <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-                    <p className="text-sm text-destructive">
-                      <AlertCircle className="w-4 h-4 inline mr-1" />
-                      {trelloIntegration.lastError}
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleConfigure(trelloIntegration.id)}
-                  >
-                    <Settings className="w-4 h-4 mr-2" />
-                    Configure
-                  </Button>
-
-                  {isConfigured && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleSync()}
-                      disabled={syncStatus.syncing}
-                    >
-                      {syncStatus.syncing && (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      )}
-                      {!syncStatus.syncing && <ExternalLink className="w-4 h-4 mr-2" />}
-                      Sync Now
-                    </Button>
-                  )}
-
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => {
-                      setIntegrationToDelete(trelloIntegration.id);
-                      setDeleteDialogOpen(true);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Disconnect
-                  </Button>
+                <div>
+                  <CardTitle>Jira</CardTitle>
+                  <CardDescription>
+                    Sync tasks to Jira projects
+                  </CardDescription>
                 </div>
+              </div>
+              {jiraConnection && (
+                <Badge variant={jiraConnection.status === 'active' ? 'default' : 'destructive'}>
+                  <CheckCircle2 className="w-3 h-3 mr-1" />
+                  Connected
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {!jiraConnection ? (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Connect your Jira account to enable task syncing with Jira projects.
+                </p>
+                <Button onClick={handleConnectJira} disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Connect Jira
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  ✓ Jira account connected. Go to a repository&apos;s settings to link it to a Jira project.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Connected since: {new Date(jiraConnection.createdAt).toLocaleDateString()}
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setIntegrationToDelete(jiraConnection.id);
+                    setDeleteProvider('jira');
+                    setDeleteDialogOpen(true);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Disconnect
+                </Button>
               </div>
             )}
           </CardContent>
         </Card>
 
         {/* Future integrations placeholder */}
-        <Card className="opacity-50">
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gray-300 rounded-lg flex items-center justify-center">
-                <span className="text-2xl">📋</span>
-              </div>
-              <div>
-                <CardTitle>Jira</CardTitle>
-                <CardDescription>Coming soon...</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-        </Card>
-
         <Card className="opacity-50">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -353,25 +319,15 @@ export default function IntegrationsPage() {
         </Card>
       </div>
 
-      {/* Trello Config Modal */}
-      {selectedIntegrationId && (
-        <TrelloConfigModal
-          open={configModalOpen}
-          onOpenChange={setConfigModalOpen}
-          integrationId={selectedIntegrationId}
-          currentConfig={
-            integrations.find((i) => i.id === selectedIntegrationId)?.config
-          }
-        />
-      )}
-
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Disconnect {deleteProvider === 'trello' ? 'Trello' : 'Jira'}?</AlertDialogTitle>
             <AlertDialogDescription>
-              This will disconnect your Trello integration. Existing cards will not be deleted, but new TODOs will not be synced automatically.
+              This will disconnect your {deleteProvider === 'trello' ? 'Trello' : 'Jira'} account 
+              and unlink all repositories. Existing {deleteProvider === 'trello' ? 'cards' : 'issues'} 
+              will not be deleted, but syncing will stop.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

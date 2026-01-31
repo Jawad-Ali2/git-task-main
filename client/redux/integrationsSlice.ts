@@ -16,10 +16,32 @@ export interface TrelloConfig {
   webhookId?: string;
 }
 
+export interface JiraConfig {
+  cloudId?: string;
+  cloudName?: string;
+  projectId?: string;
+  projectKey?: string;
+  projectName?: string;
+  issueTypeId?: string;
+  issueTypeName?: string;
+  todoStatusId?: string;
+  todoStatusName?: string;
+  inProgressStatusId?: string;
+  inProgressStatusName?: string;
+  doneStatusId?: string;
+  doneStatusName?: string;
+  syncEnabled?: boolean;
+  autoCreateIssues?: boolean;
+  autoTransitionIssues?: boolean;
+  webhookId?: string;
+}
+
+export type IntegrationConfig = TrelloConfig | JiraConfig;
+
 export interface Integration {
   id: string;
-  provider: string;
-  config: TrelloConfig;
+  provider: 'trello' | 'jira' | 'asana';
+  config: IntegrationConfig;
   status: 'active' | 'inactive' | 'error' | 'revoked';
   lastError?: string;
   lastSyncAt?: string;
@@ -41,10 +63,39 @@ export interface TrelloList {
   pos: number;
 }
 
+export interface JiraProject {
+  id: string;
+  key: string;
+  name: string;
+  projectTypeKey: string;
+}
+
+export interface JiraIssueType {
+  id: string;
+  name: string;
+  description?: string;
+  subtask: boolean;
+  iconUrl?: string;
+}
+
+export interface JiraStatus {
+  id: string;
+  name: string;
+  statusCategory: {
+    id: number;
+    key: string;
+    name: string;
+  };
+}
+
 interface IntegrationsState {
   integrations: Integration[];
+  userConnections: Integration[];  // User-level OAuth connections (no repositoryId)
   trelloBoards: TrelloBoard[];
   trelloLists: TrelloList[];
+  jiraProjects: JiraProject[];
+  jiraIssueTypes: JiraIssueType[];
+  jiraStatuses: JiraStatus[];
   loading: boolean;
   error: string | null;
   syncStatus: {
@@ -57,7 +108,12 @@ interface IntegrationsState {
 
 const initialState: IntegrationsState = {
   integrations: [],
+  userConnections: [],
   trelloBoards: [],
+  trelloLists: [],
+  jiraProjects: [],
+  jiraIssueTypes: [],
+  jiraStatuses: [],
   trelloLists: [],
   loading: false,
   error: null,
@@ -72,10 +128,28 @@ const initialState: IntegrationsState = {
 // Async thunks
 export const fetchIntegrations = createAsyncThunk(
   'integrations/fetchIntegrations',
-  async (provider?: string) => {
+  async (params?: { provider?: string; repositoryId?: string }) => {
     const response = await axiosInstance.get('/integrations', {
-      params: provider ? { provider } : undefined,
+      params,
     });
+    return response.data;
+  }
+);
+
+// Fetch user-level OAuth connections (no repositoryId)
+export const fetchUserConnections = createAsyncThunk(
+  'integrations/fetchUserConnections',
+  async () => {
+    const response = await axiosInstance.get('/integrations/connections');
+    return response.data;
+  }
+);
+
+// Link a repository to a provider (copies OAuth tokens to create repo-specific integration)
+export const linkRepositoryToProvider = createAsyncThunk(
+  'integrations/linkRepositoryToProvider',
+  async ({ provider, repositoryId }: { provider: string; repositoryId: string }) => {
+    const response = await axiosInstance.post(`/integrations/link/${provider}/${repositoryId}`);
     return response.data;
   }
 );
@@ -166,6 +240,76 @@ export const syncRepositoryToTrello = createAsyncThunk(
   }
 );
 
+// Jira Async Thunks
+export const getJiraAuthUrl = createAsyncThunk(
+  'integrations/getJiraAuthUrl',
+  async () => {
+    const response = await axiosInstance.get('/integrations/jira/authorize');
+    return response.data.authUrl;
+  }
+);
+
+export const completeJiraAuth = createAsyncThunk(
+  'integrations/completeJiraAuth',
+  async (code: string) => {
+    const response = await axiosInstance.post('/integrations/jira/callback', {
+      code,
+    });
+    return response.data;
+  }
+);
+
+export const fetchJiraProjects = createAsyncThunk(
+  'integrations/fetchJiraProjects',
+  async () => {
+    const response = await axiosInstance.get('/integrations/jira/projects');
+    return response.data;
+  }
+);
+
+export const fetchJiraStatuses = createAsyncThunk(
+  'integrations/fetchJiraStatuses',
+  async (projectId: string) => {
+    const response = await axiosInstance.get(
+      `/integrations/jira/projects/${projectId}/statuses`
+    );
+    return response.data;
+  }
+);
+
+export const configureJira = createAsyncThunk(
+  'integrations/configureJira',
+  async ({ id, config }: { id: string; config: JiraConfig }) => {
+    // Use the Jira-specific configure endpoint which handles webhook creation
+    const response = await axiosInstance.post(
+      `/integrations/jira/${id}/configure`,
+      config
+    );
+    return response.data;
+  }
+);
+
+export const syncTaskToJira = createAsyncThunk(
+  'integrations/syncTaskToJira',
+  async (taskId: string) => {
+    const response = await axiosInstance.post(
+      `/integrations/jira/sync/task/${taskId}`
+    );
+    return response.data;
+  }
+);
+
+export const syncRepositoryToJira = createAsyncThunk(
+  'integrations/syncRepositoryToJira',
+  async (params: { repositoryId?: string; force?: boolean }) => {
+    const response = await axiosInstance.post(
+      '/integrations/jira/sync/repository',
+      params
+    );
+    return response.data;
+  }
+);
+
 const integrationsSlice = createSlice({
   name: 'integrations',
   initialState,
@@ -198,6 +342,36 @@ const integrationsSlice = createSlice({
         state.error = action.error.message || 'Failed to fetch integrations';
       });
 
+    // Fetch user connections (OAuth-only, no repositoryId)
+    builder
+      .addCase(fetchUserConnections.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchUserConnections.fulfilled, (state, action) => {
+        state.loading = false;
+        state.userConnections = action.payload;
+      })
+      .addCase(fetchUserConnections.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch connections';
+      });
+
+    // Link repository to provider
+    builder
+      .addCase(linkRepositoryToProvider.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(linkRepositoryToProvider.fulfilled, (state, action) => {
+        state.loading = false;
+        state.integrations.push(action.payload);
+      })
+      .addCase(linkRepositoryToProvider.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to link repository';
+      });
+
     // Get Trello auth URL
     builder
       .addCase(getTrelloAuthUrl.pending, (state) => {
@@ -220,7 +394,7 @@ const integrationsSlice = createSlice({
       })
       .addCase(completeTrelloAuth.fulfilled, (state, action) => {
         state.loading = false;
-        state.integrations.push(action.payload);
+        state.userConnections.push(action.payload);
       })
       .addCase(completeTrelloAuth.rejected, (state, action) => {
         state.loading = false;
@@ -308,6 +482,9 @@ const integrationsSlice = createSlice({
         state.integrations = state.integrations.filter(
           (i) => i.id !== action.payload
         );
+        state.userConnections = state.userConnections.filter(
+          (i) => i.id !== action.payload
+        );
       })
       .addCase(deleteIntegration.rejected, (state, action) => {
         state.loading = false;
@@ -344,6 +521,118 @@ const integrationsSlice = createSlice({
       .addCase(syncRepositoryToTrello.rejected, (state, action) => {
         state.syncStatus.syncing = false;
         state.error = action.error.message || 'Failed to sync repository';
+      });
+
+    // Get Jira auth URL
+    builder
+      .addCase(getJiraAuthUrl.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(getJiraAuthUrl.fulfilled, (state) => {
+        state.loading = false;
+      })
+      .addCase(getJiraAuthUrl.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to get Jira auth URL';
+      });
+
+    // Complete Jira auth
+    builder
+      .addCase(completeJiraAuth.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(completeJiraAuth.fulfilled, (state, action) => {
+        state.loading = false;
+        state.userConnections.push(action.payload);
+      })
+      .addCase(completeJiraAuth.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to complete Jira auth';
+      });
+
+    // Fetch Jira projects
+    builder
+      .addCase(fetchJiraProjects.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchJiraProjects.fulfilled, (state, action) => {
+        state.loading = false;
+        state.jiraProjects = action.payload;
+      })
+      .addCase(fetchJiraProjects.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch Jira projects';
+      });
+
+    // Fetch Jira statuses
+    builder
+      .addCase(fetchJiraStatuses.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchJiraStatuses.fulfilled, (state, action) => {
+        state.loading = false;
+        state.jiraStatuses = action.payload.statuses || action.payload;
+        state.jiraIssueTypes = action.payload.issueTypes || [];
+      })
+      .addCase(fetchJiraStatuses.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to fetch Jira statuses';
+      });
+
+    // Configure Jira
+    builder
+      .addCase(configureJira.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(configureJira.fulfilled, (state, action) => {
+        state.loading = false;
+        const index = state.integrations.findIndex(
+          (i) => i.id === action.payload.id
+        );
+        if (index !== -1) {
+          state.integrations[index] = action.payload;
+        }
+      })
+      .addCase(configureJira.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message || 'Failed to configure Jira';
+      });
+
+    // Sync task to Jira
+    builder
+      .addCase(syncTaskToJira.pending, (state) => {
+        state.error = null;
+      })
+      .addCase(syncTaskToJira.fulfilled, (state) => {
+        // Task updated, could refresh tasks if needed
+      })
+      .addCase(syncTaskToJira.rejected, (state, action) => {
+        state.error = action.error.message || 'Failed to sync task to Jira';
+      });
+
+    // Sync repository to Jira
+    builder
+      .addCase(syncRepositoryToJira.pending, (state) => {
+        state.syncStatus.syncing = true;
+        state.syncStatus.synced = 0;
+        state.syncStatus.failed = 0;
+        state.syncStatus.errors = [];
+        state.error = null;
+      })
+      .addCase(syncRepositoryToJira.fulfilled, (state, action) => {
+        state.syncStatus.syncing = false;
+        state.syncStatus.synced = action.payload.synced;
+        state.syncStatus.failed = action.payload.failed;
+        state.syncStatus.errors = action.payload.errors || [];
+      })
+      .addCase(syncRepositoryToJira.rejected, (state, action) => {
+        state.syncStatus.syncing = false;
+        state.error = action.error.message || 'Failed to sync repository to Jira';
       });
   },
 });

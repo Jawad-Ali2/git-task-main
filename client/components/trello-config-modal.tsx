@@ -143,12 +143,13 @@ export default function TrelloConfigModal({
         })
       ).unwrap();
       toast.success('Trello configuration saved successfully!');
-      onOpenChange(false);
       
-      // ✅ Call optional callback
+      // ✅ Call optional callback BEFORE closing modal to prevent race condition
       if (onConfigured) {
         onConfigured();
       }
+      
+      onOpenChange(false);
     } catch (error: any) {
       toast.error(error.message || 'Failed to save configuration');
     }

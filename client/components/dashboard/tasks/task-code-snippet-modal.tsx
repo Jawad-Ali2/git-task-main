@@ -14,7 +14,7 @@ interface Task {
   lineNumber: number;
   priority: string;
   status: string;
-  ai_summary: string;
+  ai_summary?: string;
   codeSnippet?: string;
   context?: string;
   author?: string;

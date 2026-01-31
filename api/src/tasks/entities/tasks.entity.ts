@@ -77,4 +77,23 @@ export class Task {
 
   @Column({ type: 'text', nullable: true })
   trelloSyncError?: string; // Store last sync error if any
+
+  // Jira integration fields
+  @Column({ type: 'varchar', nullable: true })
+  jiraIssueId?: string; // Jira issue ID
+
+  @Column({ type: 'varchar', nullable: true })
+  jiraIssueKey?: string; // Jira issue key (e.g., "PROJ-123")
+
+  @Column({ type: 'varchar', nullable: true })
+  jiraIssueUrl?: string; // Direct URL to Jira issue
+
+  @Column({ type: 'varchar', nullable: true, default: 'pending' })
+  jiraSyncStatus?: string; // 'pending', 'synced', 'error', 'disabled'
+
+  @Column({ type: 'timestamp', nullable: true })
+  jiraLastSyncedAt?: Date; // When was this task last synced with Jira
+
+  @Column({ type: 'text', nullable: true })
+  jiraSyncError?: string; // Store last sync error if any
 }
