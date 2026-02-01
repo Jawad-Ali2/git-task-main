@@ -1,5 +1,6 @@
 import { Repository } from '../../repositories/entities/repository.entity';
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 
 
 @Entity('tasks')
@@ -34,7 +35,29 @@ export class Task {
   @Column({ type: 'float', nullable: true })
   debt_score: number;
 
-  // Commit tracking fields
+  // ========== TASK ASSIGNMENT FIELDS ==========
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'assigned_to' })
+  assignedTo: User | null;
+
+  @Column({ name: 'assigned_to', nullable: true })
+  assignedToId: string | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'assigned_by' })
+  assignedBy: User | null;
+
+  @Column({ name: 'assigned_by', nullable: true })
+  assignedById: string | null;
+
+  @Column({ name: 'assigned_at', type: 'timestamp', nullable: true })
+  assignedAt: Date | null;
+
+  @Column({ name: 'due_date', type: 'timestamp', nullable: true })
+  dueDate: Date | null;
+
+  // ========== COMMIT TRACKING FIELDS ==========
   @Column({ type: 'varchar', nullable: true })
   addedBy: string; // GitHub username who added this task
 

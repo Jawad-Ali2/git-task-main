@@ -17,6 +17,8 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { Integration } from './integrations/entities/integration.entity';
+import { TeamsModule } from './teams/teams.module';
+import { Team, TeamMember, TeamRepository, ActivityLog } from './teams/entities';
 
 @Module({
   imports: [
@@ -29,7 +31,7 @@ import { Integration } from './integrations/entities/integration.entity';
       username: process.env.DATABASE_USER,
       password: process.env.DATABASE_PASSWORD,
       database: process.env.DATABASE_NAME,
-      entities: [User, Repository, Task, Integration],
+      entities: [User, Repository, Task, Integration, Team, TeamMember, TeamRepository, ActivityLog],
       synchronize: false,
       ssl: {
         rejectUnauthorized: false
@@ -42,7 +44,8 @@ import { Integration } from './integrations/entities/integration.entity';
     TasksModule,
     WebhooksModule,
     NotificationsModule,
-    IntegrationsModule
+    IntegrationsModule,
+    TeamsModule
   ],
   controllers: [AppController, RedisController],
   providers: [AppService],

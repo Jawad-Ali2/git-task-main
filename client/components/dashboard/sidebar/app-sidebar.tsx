@@ -4,7 +4,7 @@ import { NavMain } from "@/components/dashboard/sidebar/nav-main";
 import { NavUser } from "@/components/dashboard/sidebar/nav-user";
 import { SidebarHeader, SidebarContent, SidebarFooter, Sidebar } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/authHook";
-import { Bot, Folder, FolderGit2, FolderLock, LayoutDashboard, ListTodo, Loader2 } from "lucide-react";
+import { Bot, ClipboardList, Folder, FolderGit2, FolderLock, LayoutDashboard, ListTodo, Loader2, Users } from "lucide-react";
 import Image from "next/image";
 import { NavProjects } from "./nav-projects";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
@@ -30,6 +30,18 @@ const mainMenuItems = [
     href: "/dashboard/tasks",
     icon: ListTodo,
     label: "All Tasks",
+  },
+  {
+    key: "my-tasks",
+    href: "/dashboard/my-tasks",
+    icon: ClipboardList,
+    label: "My Tasks",
+  },
+  {
+    key: "teams",
+    href: "/dashboard/teams",
+    icon: Users,
+    label: "Teams",
   },
   {
     key: "ai-insights",

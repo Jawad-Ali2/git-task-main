@@ -6,12 +6,38 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/authHook';
 import axiosInstance from '@/lib/axios';
 import { AddRepositoryModal, RepoTable } from '@/components/dashboard';
+import { ShareToTeamModal } from '@/components/teams';
+
+interface Repository {
+  id: string;
+  githubId: string;
+  name: string;
+  url: string;
+  private: boolean;
+  ai_summary: string | null;
+  debt_score: number | null;
+  isScanning?: boolean;
+  isPaused?: boolean;
+  integration?: {
+    id: string;
+    provider: 'trello' | 'jira';
+    status: string;
+    name?: string;
+  } | null;
+}
 
 export default function RepositoriesPage() {
   const { user } = useAuth();
-  const [repositories, setRepositories] = useState<any[]>([]);
+  const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
+
+  const handleShareToTeam = (repo: Repository) => {
+    setSelectedRepo(repo);
+    setShareModalOpen(true);
+  };
 
   const fetchRepositories = async () => {
     setLoading(true);
@@ -119,6 +145,7 @@ export default function RepositoriesPage() {
         <RepoTable
           data={repositories}
           onDeleteRepository={handleDeleteRepository}
+          onShareToTeam={handleShareToTeam}
         />
       )}
 
@@ -128,6 +155,16 @@ export default function RepositoriesPage() {
         onOpenChange={setIsModalOpen}
         onSuccess={fetchRepositories}
       />
+
+      {/* Share to Team Modal */}
+      {selectedRepo && (
+        <ShareToTeamModal
+          open={shareModalOpen}
+          onOpenChange={setShareModalOpen}
+          repositoryId={selectedRepo.id}
+          repositoryName={selectedRepo.name}
+        />
+      )}
 
     </div>
   );

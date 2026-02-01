@@ -5,6 +5,7 @@ import dashboardReducer from './dashboardSlice';
 import tasksReducer from './tasksSlice';
 import repositoriesReducer from './repositoriesSlice';
 import integrationsReducer from './integrationsSlice';
+import teamsReducer from './teamsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -14,6 +15,7 @@ export const store = configureStore({
     tasks: tasksReducer,
     repositories: repositoriesReducer,
     integrations: integrationsReducer,
+    teams: teamsReducer,
   },
 });
 

@@ -13,7 +13,7 @@ import {
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
-import { ArrowUpDown, ChevronDown, MoreHorizontal, Trash2, Search, Plug, Settings } from "lucide-react"
+import { ArrowUpDown, ChevronDown, MoreHorizontal, Trash2, Search, Plug, Settings, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -59,10 +59,12 @@ export type Repository = {
 interface DataTableDemoProps {
   data: Repository[]
   onDeleteRepository?: (repoId: string) => Promise<void>
+  onShareToTeam?: (repo: Repository) => void
 }
 
 export const getColumns = (
   onDeleteRepository?: (repoId: string) => Promise<void>,
+  onShareToTeam?: (repo: Repository) => void,
 ): ColumnDef<Repository>[] => [
     {
       accessorKey: "name",
@@ -131,6 +133,12 @@ export const getColumns = (
               >
                 View on GitHub
               </DropdownMenuItem>
+              {onShareToTeam && (
+                <DropdownMenuItem onClick={() => onShareToTeam(repository)}>
+                  <Users className="mr-2 h-4 w-4" />
+                  Share to Team
+                </DropdownMenuItem>
+              )}
               {onDeleteRepository && (
                 <>
                   <DropdownMenuSeparator />
@@ -163,6 +171,7 @@ export const getColumns = (
 export function RepoTable({
   data,
   onDeleteRepository,
+  onShareToTeam,
 }: DataTableDemoProps) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -173,8 +182,8 @@ export function RepoTable({
   const [rowSelection, setRowSelection] = React.useState({})
 
   const columns = React.useMemo(
-    () => getColumns(onDeleteRepository),
-    [onDeleteRepository]
+    () => getColumns(onDeleteRepository, onShareToTeam),
+    [onDeleteRepository, onShareToTeam]
   )
 
   const table = useReactTable({

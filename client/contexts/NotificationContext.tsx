@@ -52,6 +52,8 @@ export function NotificationContextProvider({ children }: { children: React.Reac
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const MAX_RECONNECT_ATTEMPTS = 3;
 
   // Load notifications from localStorage on mount
   useEffect(() => {
@@ -127,6 +129,7 @@ export function NotificationContextProvider({ children }: { children: React.Reac
       eventSource.onopen = () => {
         console.log('📡 Connected to notification stream');
         setIsConnected(true);
+        reconnectAttemptsRef.current = 0; // Reset attempts on successful connection
       };
 
       eventSource.onmessage = (event) => {
@@ -146,18 +149,29 @@ export function NotificationContextProvider({ children }: { children: React.Reac
       };
 
       eventSource.onerror = (error) => {
-        console.error('❌ SSE Error:', error);
+        // SSE errors are common during auth issues or network problems
+        // Only log in development to reduce console noise
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('⚠️ SSE connection issue (may be due to auth or network)');
+        }
         setIsConnected(false);
 
         // Cleanup and attempt reconnect
         eventSource.close();
         eventSourceRef.current = null;
 
-        // Reconnect after 5 seconds
-        reconnectTimeoutRef.current = setTimeout(() => {
-          console.log('🔄 Attempting to reconnect...');
-          connect();
-        }, 5000);
+        // Only attempt reconnect if under max attempts
+        if (reconnectAttemptsRef.current < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttemptsRef.current++;
+          const delay = Math.min(5000 * reconnectAttemptsRef.current, 30000); // Exponential backoff, max 30s
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (process.env.NODE_ENV === 'development') {
+              console.log(`🔄 Reconnecting... (attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS})`);
+            }
+            connect();
+          }, delay);
+        }
       };
 
       eventSourceRef.current = eventSource;
