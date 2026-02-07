@@ -6,6 +6,11 @@ import {
   TaskTreeItem,
 } from "./tasks/taskTreeDataProvider";
 import { TaskCompletionProvider } from "./tasks/taskCompletionProvider";
+import {
+  CodeTourService,
+  CodeTourPanel,
+  extractTaskContext,
+} from "./codeTour";
 
 // This method is called when your extension is activated
 // Your extension is activated the first time its view or a command is used.
@@ -17,6 +22,9 @@ export async function activate(
     treeDataProvider: taskTreeDataProvider,
   });
   context.subscriptions.push(tasksView);
+
+  // Initialize the Code Tour service
+  const codeTourService = new CodeTourService(context);
 
   // Register completion provider for @task snippets
   const completionProvider = new TaskCompletionProvider();
@@ -152,9 +160,10 @@ export async function activate(
       taskTreeDataProvider.setSortBy(pick.value as any);
     }),
     vscode.commands.registerCommand(
-      "gittask.aiCodeTour",
-      async (task: CodeTask) => {
-        await showAiCodeTour(task);
+      "gittask.startCodeTour",
+      async (item: CodeTask | TaskTreeItem) => {
+        const task: CodeTask = item instanceof TaskTreeItem ? item.task : item;
+        await startAiCodeTour(task, codeTourService, context);
       },
     ),
     vscode.commands.registerCommand(
@@ -190,72 +199,41 @@ async function openTaskInEditor(task: CodeTask): Promise<void> {
   editor.revealRange(task.range, vscode.TextEditorRevealType.InCenter);
 }
 
-async function showAiCodeTour(task: CodeTask): Promise<void> {
+/**
+ * Start an AI-guided code tour for a task
+ * This is the main entry point for the code tour feature
+ */
+async function startAiCodeTour(
+  task: CodeTask,
+  codeTourService: CodeTourService,
+  context: vscode.ExtensionContext,
+): Promise<void> {
   try {
+    // Create or show the panel
+    const panel = CodeTourPanel.createOrShow(context.extensionUri);
+    panel.showLoading(task.label);
+
+    // Open the document and extract context
     const document = await vscode.workspace.openTextDocument(task.fileUri);
-    const surroundingInfo = getSurroundingContextInfo(document, task.line);
+    const taskContext = await extractTaskContext(task, document);
 
-    const steps: string[] = [];
-    steps.push(
-      `1. Start at ${vscode.workspace.asRelativePath(task.fileUri)}:${task.line + 1} to review the task comment.`,
-    );
-    if (surroundingInfo.nearestSymbol) {
-      steps.push(
-        `2. Inspect the nearby symbol "${surroundingInfo.nearestSymbol}" to understand the primary behavior this task affects.`,
-      );
-    }
-    if (surroundingInfo.relatedLinesDescription) {
-      steps.push(
-        `3. Read the surrounding lines (${surroundingInfo.relatedLinesDescription}) to see how data flows into and out of this area.`,
-      );
-    }
-    steps.push(
-      "4. Search the workspace for this symbol or key identifiers from the task comment to find related usages.",
-    );
-    steps.push(
-      "5. Review any tests or spec files that mention these identifiers to understand expected behavior.",
-    );
+    // Generate or retrieve the code tour
+    const tour = await codeTourService.getCodeTour(taskContext);
 
-    const message = `AI-guided code tour for task: "${task.label}"
-
-${steps.join("\n")}`;
-
-    await vscode.window.showInformationMessage(message, { modal: true });
+    // Display the tour
+    panel.showTour(tour);
   } catch (error) {
-    await vscode.window.showErrorMessage(
-      "Unable to generate AI-guided code tour for this task.",
-    );
-  }
-}
-
-interface SurroundingContextInfo {
-  nearestSymbol?: string;
-  relatedLinesDescription?: string;
-}
-
-function getSurroundingContextInfo(
-  document: vscode.TextDocument,
-  line: number,
-): SurroundingContextInfo {
-  const totalLines = document.lineCount;
-  const startLine = Math.max(0, line - 20);
-  const endLine = Math.min(totalLines - 1, line + 20);
-
-  let nearestSymbol: string | undefined;
-  for (let i = line; i >= startLine; i -= 1) {
-    const text = document.lineAt(i).text;
-    const symbolMatch = text.match(
-      /\b(class|interface|function|async function|const|let|var)\s+([A-Za-z0-9_$]+)/,
-    );
-    if (symbolMatch) {
-      nearestSymbol = symbolMatch[2];
-      break;
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Show error in panel if it exists
+    if (CodeTourPanel.currentPanel) {
+      CodeTourPanel.currentPanel.showError(errorMessage);
+    } else {
+      await vscode.window.showErrorMessage(
+        `Unable to generate AI-guided code tour: ${errorMessage}`,
+      );
     }
   }
-
-  const relatedLinesDescription = `${startLine + 1}-${endLine + 1}`;
-
-  return { nearestSymbol, relatedLinesDescription };
 }
 
 async function markTaskAsResolved(

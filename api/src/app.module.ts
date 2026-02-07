@@ -17,6 +17,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { Integration } from './integrations/entities/integration.entity';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -42,7 +43,8 @@ import { Integration } from './integrations/entities/integration.entity';
     TasksModule,
     WebhooksModule,
     NotificationsModule,
-    IntegrationsModule
+    IntegrationsModule,
+    AiModule,
   ],
   controllers: [AppController, RedisController],
   providers: [AppService],

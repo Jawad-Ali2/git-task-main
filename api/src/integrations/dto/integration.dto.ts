@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsBoolean, IsObject, IsUUID } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsObject,
+  IsUUID,
+} from 'class-validator';
 
 export class CreateIntegrationDto {
   @IsString()

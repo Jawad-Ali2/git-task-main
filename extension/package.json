@@ -47,7 +47,7 @@
         "icon": "$(list-ordered)"
       },
       {
-        "command": "gittask.aiCodeTour",
+        "command": "gittask.startCodeTour",
         "title": "GitTask: AI-Guided Code Tour",
         "icon": "$(compass)"
       },
@@ -92,7 +92,7 @@
       ],
       "view/item/context": [
         {
-          "command": "gittask.aiCodeTour",
+          "command": "gittask.startCodeTour",
           "when": "view == gittask.tasksView && viewItem == gittask.taskItem",
           "group": "inline@1"
         },
