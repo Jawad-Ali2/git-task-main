@@ -186,6 +186,10 @@ export function TaskCard({
                       width={30} 
                       height={30} 
                       className="rounded-full" 
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
                     />
                   </div>
                 </div>

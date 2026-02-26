@@ -6,6 +6,7 @@ import tasksReducer from './tasksSlice';
 import repositoriesReducer from './repositoriesSlice';
 import integrationsReducer from './integrationsSlice';
 import teamsReducer from './teamsSlice';
+import aiInsightsReducer from './aiInsightsSlice';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     repositories: repositoriesReducer,
     integrations: integrationsReducer,
     teams: teamsReducer,
+    aiInsights: aiInsightsReducer,
   },
 });
 

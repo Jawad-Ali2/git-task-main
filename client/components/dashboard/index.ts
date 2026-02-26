@@ -1,3 +1,5 @@
+export * from './ai-insights';
+
 export * from './badges';
 
 export * from './home';

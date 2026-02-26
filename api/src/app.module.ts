@@ -33,6 +33,8 @@ import { Team, TeamMember, TeamRepository, ActivityLog } from './teams/entities'
       database: process.env.DATABASE_NAME,
       entities: [User, Repository, Task, Integration, Team, TeamMember, TeamRepository, ActivityLog],
       synchronize: false,
+      migrations: ['dist/migrations/*.js'],
+      migrationsRun: true,
       ssl: {
         rejectUnauthorized: false
       }

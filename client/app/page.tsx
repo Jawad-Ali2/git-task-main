@@ -24,19 +24,19 @@ export default function Home() {
         </div>
         
         {/* Gradient orbs for visual interest */}
-        <div className="absolute top-20 left-1/4 w-72 h-72 bg-green-400/20 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl animate-pulse delay-1000" />
+        {/* <div className="absolute top-20 left-1/4 w-72 h-72 bg-green-400/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-emerald-400/10 rounded-full blur-3xl animate-pulse delay-1000" /> */}
         
         <div className="container mx-auto max-w-6xl text-center relative z-10">
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-8 glass-hover border border-primary/20">
             <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
             Transform your codebase TODOs into insights
           </div>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 pb-3 bg-gradient-to-b from-foreground to-foreground/70 bg-clip-text">
-            Transform TODOs into
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 pb-3">
+            From Comment
             <br />
-            <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              Actionable Intelligence
+            <span className="text-green-600">
+              To Clarity
             </span>
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
@@ -125,13 +125,13 @@ export default function Home() {
                   Connect your GitHub repositories and let AI automatically discover and categorize every TODO, FIXME, and HACK comment in seconds.
                 </p>
               </div>
-              <div className="absolute bottom-0 right-0 w-80 h-80 bg-gradient-to-tl from-green-500/10 to-transparent rounded-tl-[100px] group-hover:scale-110 transition-transform duration-500">
+              <div className="absolute bottom-0 right-0 w-80 h-80 bg-gradient-to-tl from-green-500/20 to-transparent rounded-tl-[100px] group-hover:scale-110 transition-transform duration-500">
                 <div className="absolute inset-8 rounded-tl-[80px] border-2 border-green-500/20 flex items-center justify-center">
                   <div className="space-y-3 w-full px-8">
-                    <div className="h-3 bg-green-500/30 rounded-full w-3/4 group-hover:w-full transition-all duration-500"></div>
-                    <div className="h-3 bg-green-500/20 rounded-full w-full"></div>
-                    <div className="h-3 bg-green-500/30 rounded-full w-2/3 group-hover:w-5/6 transition-all duration-500"></div>
-                    <div className="h-3 bg-green-500/20 rounded-full w-4/5 group-hover:w-full transition-all duration-500"></div>
+                    <div className="h-3 bg-gray-500/30 rounded-full w-3/4 group-hover:w-full transition-all duration-500"></div>
+                    <div className="h-3 bg-gray-500/20 rounded-full w-full"></div>
+                    <div className="h-3 bg-gray-500/30 rounded-full w-2/3 group-hover:w-5/6 transition-all duration-500"></div>
+                    <div className="h-3 bg-gray-500/20 rounded-full w-4/5 group-hover:w-full transition-all duration-500"></div>
                   </div>
                 </div>
               </div>

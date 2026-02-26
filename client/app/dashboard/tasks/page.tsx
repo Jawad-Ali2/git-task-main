@@ -69,16 +69,7 @@ export default function TasksPage() {
     setLoading(true);
     try {
       const response = await axiosInstance.get('/tasks');
-      // Add dummy author data and code snippets
-      const tasksWithExtras = (response.data || []).map((task: Task) => ({
-        ...task,
-        authorAvatar: "https://avatar.iran.liara.run/public",
-        author: ['John Doe', 'Jane Smith', 'Bob Wilson', 'Alice Johnson'][Math.floor(Math.random() * 4)],
-        authorEmail: ['john@example.com', 'jane@example.com', 'bob@example.com', 'alice@example.com'][Math.floor(Math.random() * 4)],
-        codeSnippet: `// ${task.filePath}:${task.lineNumber}\nfunction example() {\n  // ${task.type}: ${task.description}\n  // Implementation needed here\n}`,
-        context: `This ${task.type} task in ${task.filePath} requires attention. The issue is located at line ${task.lineNumber} and should be addressed with ${task.priority} priority.`,
-      }));
-      setTasks(tasksWithExtras);
+      setTasks(response.data || []);
     } catch (error) {
       console.error('Failed to fetch tasks:', error);
     } finally {
@@ -178,7 +169,7 @@ export default function TasksPage() {
                     setIsCodeSnippetModalOpen(true);
                   }}
                   onCreateCard={(task) => {
-                    setSelectedTask(task);
+                      setSelectedTask(task);
                   }}
                   showRepository={true}
                   layout="detailed"

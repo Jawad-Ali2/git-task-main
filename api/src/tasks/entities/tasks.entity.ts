@@ -35,6 +35,9 @@ export class Task {
   @Column({ type: 'float', nullable: true })
   debt_score: number;
 
+  @Column({ type: 'text', nullable: true })
+  codeSnippet: string;
+
   // ========== TASK ASSIGNMENT FIELDS ==========
 
   @ManyToOne(() => User, { nullable: true })

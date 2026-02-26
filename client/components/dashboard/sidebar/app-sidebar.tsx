@@ -45,7 +45,7 @@ const mainMenuItems = [
   },
   {
     key: "ai-insights",
-    href: "/ai-insights",
+    href: "/dashboard/ai-insights",
     icon: Bot,
     label: "AI Insights",
   },

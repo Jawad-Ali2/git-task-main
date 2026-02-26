@@ -114,14 +114,14 @@ export default function RepositoryTasksPage() {
         try {
             const response = await axiosInstance.get(`/tasks/repository/${repoId}`);
             // Add dummy author data and code snippets
-            const tasksWithExtras = (response.data || []).map((task: Task) => ({
-                ...task,
-                author: ['John Doe', 'Jane Smith', 'Bob Wilson', 'Alice Johnson'][Math.floor(Math.random() * 4)],
-                authorEmail: ['john@example.com', 'jane@example.com', 'bob@example.com', 'alice@example.com'][Math.floor(Math.random() * 4)],
-                codeSnippet: `// ${task.filePath}:${task.lineNumber}\nfunction example() {\n  // ${task.type}: ${task.description}\n  // Implementation needed here\n}`,
-                context: `This ${task.type} task in ${task.filePath} requires attention. The issue is located at line ${task.lineNumber} and should be addressed with ${task.priority} priority.`,
-            }));
-            setTasks(tasksWithExtras);
+            // const tasksWithExtras = (response.data || []).map((task: Task) => ({
+            //     ...task,
+            //     author: ['John Doe', 'Jane Smith', 'Bob Wilson', 'Alice Johnson'][Math.floor(Math.random() * 4)],
+            //     authorEmail: ['john@example.com', 'jane@example.com', 'bob@example.com', 'alice@example.com'][Math.floor(Math.random() * 4)],
+            //     codeSnippet: `// ${task.filePath}:${task.lineNumber}\nfunction example() {\n  // ${task.type}: ${task.description}\n  // Implementation needed here\n}`,
+            //     context: `This ${task.type} task in ${task.filePath} requires attention. The issue is located at line ${task.lineNumber} and should be addressed with ${task.priority} priority.`,
+            // }));
+            setTasks(response.data || []);
         } catch (error) {
             console.error('Failed to fetch tasks:', error);
         } finally {

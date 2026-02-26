@@ -647,6 +647,7 @@ export class TasksService {
                             filePath: file.path,
                             lineNumber: index + 1,
                             status: 'open',
+                            codeSnippet: surroundingCode, // Persisted to DB
                             surroundingCode, // Store temporarily for AI analysis
                         } as any);
                     }
@@ -1030,6 +1031,7 @@ export class TasksService {
                 lineNumber: this.validateLineNumber(currentTask.lineNumber),
                 status: currentTask.status,
                 repository: repo,
+                codeSnippet: currentTask.surroundingCode || undefined,
                 addedBy: this.sanitizeString(
                     commit.author.username || commit.author.name,
                     this.MAX_USERNAME_LENGTH
@@ -1037,7 +1039,7 @@ export class TasksService {
                 addedAt: this.validateTimestamp(commit.timestamp),
                 addedInCommit: commit.id,
             });
-            const savedTask = await taskRepo.save(newTask);
+            const savedTask: Task = await taskRepo.save(newTask);
             
             // ✅ Auto-sync to Trello if enabled (async, non-blocking)
             this.autoSyncTaskToTrello(savedTask).catch(err => {

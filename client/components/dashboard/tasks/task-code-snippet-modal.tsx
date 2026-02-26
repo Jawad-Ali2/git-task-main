@@ -3,7 +3,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Code, Copy, ExternalLink, User } from 'lucide-react';
+import { Code, Copy, User } from 'lucide-react';
 import { useState } from 'react';
 
 interface Task {
@@ -40,9 +40,6 @@ export function TaskCodeSnippetModal({ open, onOpenChange, task }: TaskCodeSnipp
       setTimeout(() => setCopied(false), 2000);
     }
   };
-
-  // Dummy context if not provided
-  const context = task.context || `This task requires updating the ${task.filePath} file. The current implementation needs to be reviewed and improved according to the ${task.type} comment found at line ${task.lineNumber}.`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,37 +100,30 @@ export function TaskCodeSnippetModal({ open, onOpenChange, task }: TaskCodeSnipp
           </div>
 
           {/* Code Snippet */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-sm">Code Snippet</h4>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleCopy}
-                className="h-8"
-              >
-                <Copy className="h-3 w-3 mr-2" />
-                {copied ? 'Copied!' : 'Copy'}
-              </Button>
+          {task.codeSnippet && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <h4 className="font-medium text-sm">Code Snippet</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopy}
+                  className="h-8"
+                >
+                  <Copy className="h-3 w-3 mr-2" />
+                  {copied ? 'Copied!' : 'Copy'}
+                </Button>
+              </div>
+              <div className="relative">
+                <pre className="p-4 border rounded-lg bg-black/90 text-green-400 overflow-x-auto text-xs font-mono">
+                  <code>{task.codeSnippet}</code>
+                </pre>
+              </div>
             </div>
-            <div className="relative">
-              <pre className="p-4 border rounded-lg bg-black/90 text-green-400 overflow-x-auto text-xs font-mono">
-                <code>{task.codeSnippet}</code>
-              </pre>
-            </div>
-          </div>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-2">
-            <Button variant="outline" className="flex-1" asChild>
-              <a
-                href={`vscode://file/${task.filePath}:${task.lineNumber}`}
-                className="flex items-center justify-center"
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Open in VS Code
-              </a>
-            </Button>
             <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
               Close
             </Button>

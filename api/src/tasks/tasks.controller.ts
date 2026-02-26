@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards, Logger, Inject, forwardRef, Optional } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiCookieAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody, ApiQuery, ApiCookieAuth } from '@nestjs/swagger';
 import { TasksService, ScanStatus } from './tasks.service';
+import { AiInsightsService } from './ai-insights.service';
+import { AiInsightsQueryDto } from './dto/ai-insights.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Task } from './entities/tasks.entity';
 import { Repository } from 'typeorm';
@@ -17,6 +19,7 @@ export class TasksController {
 
     constructor(
         private readonly tasksService: TasksService,
+        private readonly aiInsightsService: AiInsightsService,
         @InjectRepository(Task)
         private readonly taskRepo: Repository<Task>,
         @Optional()
@@ -223,6 +226,18 @@ export class TasksController {
 
         task.priority = body.priority;
         return await this.taskRepo.save(task);
+    }
+
+    /**
+     * Get AI-powered insights and technical debt analysis
+     */
+    @Get('insights')
+    @ApiOperation({ summary: 'Get AI insights and technical debt analysis for authenticated user' })
+    @ApiQuery({ name: 'repositoryId', required: false, description: 'Filter insights by repository ID' })
+    @ApiResponse({ status: 200, description: 'Returns AI insights analysis' })
+    async getAiInsights(@Req() req: Request, @Query() query: AiInsightsQueryDto) {
+        const user = (req as any).user;
+        return this.aiInsightsService.getInsights(user.userId, query.repositoryId);
     }
 
     /**

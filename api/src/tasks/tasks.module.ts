@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TasksService } from './tasks.service';
+import { AiInsightsService } from './ai-insights.service';
 import { TasksController } from './tasks.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Repository } from '@/repositories/entities/repository.entity';
@@ -15,8 +16,8 @@ import { IntegrationsModule } from '@/integrations/integrations.module';
         AiModule,
         forwardRef(() => IntegrationsModule),
     ],
-    providers: [TasksService],
+    providers: [TasksService, AiInsightsService],
     controllers: [TasksController],
-    exports: [TasksService],
+    exports: [TasksService, AiInsightsService],
 })
 export class TasksModule { }
