@@ -1,0 +1,39 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "GitTask Comment Tasks",
+  "scopeName": "text.gittask.injection",
+  "injectionSelector": "L:comment",
+  "patterns": [
+    {
+      "name": "markup.bold.gittask.keyword",
+      "match": "@task\\b",
+      "captures": {
+        "0": {
+          "name": "keyword.control.gittask entity.name.tag.gittask"
+        }
+      }
+    },
+    {
+      "name": "keyword.other.gittask.tag",
+      "match": "\\b(TODO|FIXME|HACK)\\b"
+    },
+    {
+      "begin": "\\[",
+      "end": "\\]",
+      "name": "meta.embedded.block.gittask",
+      "patterns": [
+        {
+          "match": "(priority|status|author)\\s*[:=]\\s*([^\\]]+)",
+          "captures": {
+            "1": {
+              "name": "variable.parameter.gittask.field entity.other.attribute-name.gittask"
+            },
+            "2": {
+              "name": "string.quoted.gittask.value constant.language.gittask"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

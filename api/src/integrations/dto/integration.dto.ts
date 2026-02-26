@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsBoolean, IsObject, IsUUID, IsDate } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBoolean,
+  IsObject,
+  IsUUID, IsDate,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { TrelloConfig, JiraConfig } from '../interfaces/provider-config.interface';
 

@@ -20,7 +20,12 @@ import { AuthGuard } from '@nestjs/passport';
 import { IntegrationsService } from './services/integrations.service';
 import { TrelloApiService } from './services/trello-api.service';
 import { TrelloWebhookSecurityService } from './services/trello-webhook-security.service';
-import { CreateIntegrationDto, UpdateIntegrationDto, SyncTasksDto, TrelloConfigDto } from './dto/integration.dto';
+import {
+  CreateIntegrationDto,
+  UpdateIntegrationDto,
+  SyncTasksDto,
+  TrelloConfigDto,
+} from './dto/integration.dto';
 import { Public } from './decorators/public.decorator';
 import { Request } from 'express';
 import { TrelloConfig } from './interfaces/provider-config.interface';

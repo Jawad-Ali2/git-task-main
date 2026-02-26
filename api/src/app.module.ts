@@ -19,6 +19,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { Integration } from './integrations/entities/integration.entity';
 import { TeamsModule } from './teams/teams.module';
 import { Team, TeamMember, TeamRepository, ActivityLog } from './teams/entities';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -47,7 +48,8 @@ import { Team, TeamMember, TeamRepository, ActivityLog } from './teams/entities'
     WebhooksModule,
     NotificationsModule,
     IntegrationsModule,
-    TeamsModule
+    TeamsModule,
+    AiModule,
   ],
   controllers: [AppController, RedisController],
   providers: [AppService],

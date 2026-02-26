@@ -1,0 +1,148 @@
+{
+  "name": "gittask",
+  "displayName": "GitTask",
+  "description": "Automated Microtask Management for Software Development",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.106.1"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "gittask.tasksView",
+          "name": "GitTask Tasks"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "gittask.refreshTasks",
+        "title": "GitTask: Refresh Tasks",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gittask.filterByStatus",
+        "title": "GitTask: Filter by Status",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "gittask.filterByType",
+        "title": "GitTask: Filter by Type",
+        "icon": "$(symbol-keyword)"
+      },
+      {
+        "command": "gittask.filterByAuthor",
+        "title": "GitTask: Filter by Author",
+        "icon": "$(account)"
+      },
+      {
+        "command": "gittask.sortTasks",
+        "title": "GitTask: Sort Tasks",
+        "icon": "$(list-ordered)"
+      },
+      {
+        "command": "gittask.startCodeTour",
+        "title": "GitTask: AI-Guided Code Tour",
+        "icon": "$(compass)"
+      },
+      {
+        "command": "gittask.markTaskAsResolved",
+        "title": "GitTask: Mark Task as Resolved",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gittask.resetPreferences",
+        "title": "GitTask: Reset Preferences",
+        "icon": "$(debug-restart)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "gittask.refreshTasks",
+          "when": "view == gittask.tasksView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gittask.filterByStatus",
+          "when": "view == gittask.tasksView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gittask.filterByType",
+          "when": "view == gittask.tasksView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gittask.filterByAuthor",
+          "when": "view == gittask.tasksView",
+          "group": "navigation@4"
+        },
+        {
+          "command": "gittask.sortTasks",
+          "when": "view == gittask.tasksView",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gittask.startCodeTour",
+          "when": "view == gittask.tasksView && viewItem == gittask.taskItem",
+          "group": "inline@1"
+        },
+        {
+          "command": "gittask.markTaskAsResolved",
+          "when": "view == gittask.tasksView && viewItem == gittask.taskItem",
+          "group": "inline@2"
+        }
+      ]
+    },
+    "grammars": [
+      {
+        "scopeName": "text.gittask.injection",
+        "path": "./syntaxes/gittask.tmLanguage.json",
+        "injectTo": [
+          "source.ts",
+          "source.tsx",
+          "source.js",
+          "source.jsx",
+          "source.python",
+          "source.rust",
+          "source.go"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && npm run lint && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && npm run lint && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile && npm run lint",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.106.1",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "typescript-eslint": "^8.46.3",
+    "eslint": "^9.39.1",
+    "esbuild": "^0.27.0",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-cli": "^0.0.12",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
