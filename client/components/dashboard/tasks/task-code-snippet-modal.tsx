@@ -17,9 +17,7 @@ interface Task {
   ai_summary?: string;
   codeSnippet?: string;
   context?: string;
-  author?: string;
-  authorEmail?: string;
-  authorAvatar?: string;
+  addedBy?: string;
 }
 
 interface TaskCodeSnippetModalProps {
@@ -68,24 +66,13 @@ export function TaskCodeSnippetModal({ open, onOpenChange, task }: TaskCodeSnipp
             </div>
 
             {/* Author Info */}
-            {task.author && (
+            {task.addedBy && (
               <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/50">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  {task.authorAvatar ? (
-                    <img
-                      src={task.authorAvatar}
-                      alt={task.author}
-                      className="w-10 h-10 rounded-full"
-                    />
-                  ) : (
-                    <User className="h-5 w-5 text-primary" />
-                  )}
+                  <User className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">{task.author}</p>
-                  {task.authorEmail && (
-                    <p className="text-xs text-muted-foreground">{task.authorEmail}</p>
-                  )}
+                  <p className="text-sm font-medium">{task.addedBy}</p>
                 </div>
               </div>
             )}

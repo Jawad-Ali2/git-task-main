@@ -25,6 +25,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 
 interface Repository {
   githubId: string;
@@ -93,7 +94,7 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
       newSelected.delete(githubId);
     } else {
       if (newSelected.size >= 20) {
-        alert('You can only save up to 20 repositories');
+        toast.warning('You can only save up to 20 repositories');
         return;
       }
       newSelected.add(githubId);
@@ -109,7 +110,7 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
       );
 
       if (newRepos.length === 0) {
-        alert('No new repositories to save');
+        toast.warning('No new repositories to save');
         setSaving(false);
         return;
       }
@@ -132,7 +133,7 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
       onSuccess();
     } catch (error: any) {
       console.error('Failed to save repositories:', error);
-      alert(error.response?.data?.message || 'Failed to save repositories');
+      toast.error(error.response?.data?.message || 'Failed to save repositories');
     } finally {
       setSaving(false);
     }

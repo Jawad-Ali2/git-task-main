@@ -37,6 +37,16 @@ import {
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export type Repository = {
   id: string
@@ -65,6 +75,7 @@ interface DataTableDemoProps {
 export const getColumns = (
   onDeleteRepository?: (repoId: string) => Promise<void>,
   onShareToTeam?: (repo: Repository) => void,
+  onRequestDelete?: (repo: Repository) => void,
 ): ColumnDef<Repository>[] => [
     {
       accessorKey: "name",
@@ -149,11 +160,7 @@ export const getColumns = (
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    onClick={async () => {
-                      if (confirm(`Are you sure you want to delete ${repository.name}?`)) {
-                        await onDeleteRepository(repository.id)
-                      }
-                    }}
+                    onClick={() => onRequestDelete?.(repository)}
                     className="text-destructive"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
@@ -180,10 +187,24 @@ export function RepoTable({
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
   const [rowSelection, setRowSelection] = React.useState({})
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
+  const [repoToDelete, setRepoToDelete] = React.useState<Repository | null>(null)
+
+  const handleRequestDelete = React.useCallback((repo: Repository) => {
+    setRepoToDelete(repo)
+    setDeleteDialogOpen(true)
+  }, [])
+
+  const confirmDelete = React.useCallback(async () => {
+    if (repoToDelete && onDeleteRepository) {
+      await onDeleteRepository(repoToDelete.id)
+    }
+    setRepoToDelete(null)
+  }, [repoToDelete, onDeleteRepository])
 
   const columns = React.useMemo(
-    () => getColumns(onDeleteRepository, onShareToTeam),
-    [onDeleteRepository, onShareToTeam]
+    () => getColumns(onDeleteRepository, onShareToTeam, handleRequestDelete),
+    [onDeleteRepository, onShareToTeam, handleRequestDelete]
   )
 
   const table = useReactTable({
@@ -321,6 +342,22 @@ export function RepoTable({
           </Button>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {repoToDelete?.name}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

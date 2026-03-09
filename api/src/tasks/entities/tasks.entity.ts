@@ -26,7 +26,7 @@ export class Task {
   @Column()
   lineNumber: number;
 
-  @ManyToOne(() => Repository, (repo) => repo.tasks)
+  @ManyToOne(() => Repository, (repo) => repo.tasks, { onDelete: 'CASCADE' })
   repository: Repository;
 
   @Column({ type: 'text', nullable: true })

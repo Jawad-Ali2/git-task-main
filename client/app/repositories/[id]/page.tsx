@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import axiosInstance from '@/lib/axios';
 import Link from 'next/link';
+import { toast } from 'sonner';
 
 interface ScanStatus {
   status: 'idle' | 'scanning' | 'completed' | 'failed';
@@ -121,7 +122,7 @@ export default function RepositoryTasksPage() {
       setTimeout(() => checkScanStatus(), 1000);
     } catch (error) {
       console.error('Failed to start scan:', error);
-      alert('Failed to start scan. Please try again.');
+      toast.error('Failed to start scan. Please try again.');
       setScanning(false);
     }
   };

@@ -12,9 +12,7 @@ interface Task {
     id: string;
     name: string;
   };
-  author?: string;
-  authorEmail?: string;
-  authorAvatar?: string;
+  addedBy?: string;
   codeSnippet?: string;
   context?: string;
 }

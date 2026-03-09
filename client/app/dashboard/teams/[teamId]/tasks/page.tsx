@@ -38,6 +38,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent as AlertDialogContentPrimitive,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -85,6 +95,10 @@ export default function TeamTasksPage() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [assigneeFilter, setAssigneeFilter] = useState<string>('all');
   const [repoFilter, setRepoFilter] = useState<string>('all');
+
+  // Unassign confirmation state
+  const [unassignDialogOpen, setUnassignDialogOpen] = useState(false);
+  const [taskToUnassign, setTaskToUnassign] = useState<TeamTask | null>(null);
 
   // Assignment modal state
   const [assignModalOpen, setAssignModalOpen] = useState(false);
@@ -147,9 +161,15 @@ export default function TeamTasksPage() {
     setSelectedTask(null);
   };
 
-  const handleUnassign = async (task: TeamTask) => {
-    if (!confirm('Are you sure you want to unassign this task?')) return;
-    await dispatch(unassignTask({ teamId, taskId: task.id }));
+  const handleUnassign = (task: TeamTask) => {
+    setTaskToUnassign(task);
+    setUnassignDialogOpen(true);
+  };
+
+  const confirmUnassign = async () => {
+    if (!taskToUnassign) return;
+    await dispatch(unassignTask({ teamId, taskId: taskToUnassign.id }));
+    setTaskToUnassign(null);
   };
 
   const getPriorityColor = (priority: string) => {
@@ -488,6 +508,22 @@ export default function TeamTasksPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Unassign Confirmation Dialog */}
+      <AlertDialog open={unassignDialogOpen} onOpenChange={setUnassignDialogOpen}>
+        <AlertDialogContentPrimitive>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to unassign this task?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmUnassign}>Unassign</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContentPrimitive>
+      </AlertDialog>
     </div>
   );
 }

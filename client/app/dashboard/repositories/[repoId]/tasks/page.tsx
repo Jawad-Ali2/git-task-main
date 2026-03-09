@@ -29,10 +29,6 @@ interface Task {
         id: string;
         name: string;
     };
-    // Extended fields with dummy data
-    author?: string;
-    authorEmail?: string;
-    authorAvatar?: string;
     codeSnippet?: string;
     context?: string;
     // Commit tracking fields
@@ -323,9 +319,9 @@ export default function RepositoryTasksPage() {
                                         setSelectedTask(task);
                                         setIsCodeSnippetModalOpen(true);
                                     }}
-                                    onCreateCard={(task) => {
+                                    onCreateCard={integration.configured ? (task) => {
                                         setSelectedTask(task);
-                                    }}
+                                    } : undefined}
                                     onUpdateStatus={handleUpdateStatus}
                                     onUpdatePriority={handleUpdatePriority}
                                     showStatusSelect={true}

@@ -2,7 +2,6 @@ import { Code, FileText, User, ExternalLink, ChartNoAxesCombined } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import Image from 'next/image';
 import { PriorityBadge, StatusBadge, TypeBadge } from '../badges';
 
 interface Task {
@@ -18,9 +17,7 @@ interface Task {
     id: string;
     name: string;
   };
-  author?: string;
-  authorEmail?: string;
-  authorAvatar?: string;
+  addedBy?: string;
   codeSnippet?: string;
   context?: string;
   // Trello fields
@@ -116,13 +113,13 @@ export function TaskCard({
                 )}
               </div>
 
-              {task.author && (
+              {task.addedBy && (
                 <div className="flex items-center gap-2 text-sm">
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
                       <User className="h-3 w-3 text-primary" />
                     </div>
-                    <span>{task.author}</span>
+                    <span>{task.addedBy}</span>
                   </div>
                 </div>
               )}
@@ -177,21 +174,12 @@ export function TaskCard({
         <div className="flex items-stretch justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-2 flex-wrap">
-              {task.author && task.authorAvatar && (
+              {task.addedBy && (
                 <div className="flex items-center gap-2 text-sm">
                   <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center">
-                    <Image 
-                      src={task.authorAvatar} 
-                      alt={task.author} 
-                      width={30} 
-                      height={30} 
-                      className="rounded-full" 
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                    />
+                    <User className="h-4 w-4 text-primary" />
                   </div>
+                  <span className="text-sm text-muted-foreground">{task.addedBy}</span>
                 </div>
               )}
               <TypeBadge type={task.type} />

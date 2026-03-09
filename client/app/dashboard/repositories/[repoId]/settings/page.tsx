@@ -16,6 +16,16 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface UserConnection {
   id: string;
@@ -50,6 +60,7 @@ export default function RepositorySettingsPage() {
   const [syncModalOpen, setSyncModalOpen] = useState(false);
   const [isNewLink, setIsNewLink] = useState(false); // Track if this is a fresh link (not yet configured)
   const configSuccessRef = useRef(false); // Ref to track if config was saved (survives the modal close race condition)
+  const [unlinkDialogOpen, setUnlinkDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -136,13 +147,13 @@ export default function RepositorySettingsPage() {
     toast.success(`${repoIntegration?.provider === 'trello' ? 'Trello' : 'Jira'} configured successfully!`);
   };
 
-  const handleUnlinkProvider = async () => {
+  const handleUnlinkProvider = () => {
     if (!repoIntegration) return;
+    setUnlinkDialogOpen(true);
+  };
 
-    if (!confirm('Are you sure you want to unlink this integration from this repository?')) {
-      return;
-    }
-
+  const confirmUnlinkProvider = async () => {
+    if (!repoIntegration) return;
     try {
       await axiosInstance.delete(`/integrations/${repoIntegration.id}`);
       toast.success('Integration unlinked successfully');
@@ -485,6 +496,22 @@ export default function RepositorySettingsPage() {
           repositoryName={repository.name}
         />
       )}
+
+      {/* Unlink Confirmation Dialog */}
+      <AlertDialog open={unlinkDialogOpen} onOpenChange={setUnlinkDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to unlink this integration from this repository?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmUnlinkProvider}>Unlink</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

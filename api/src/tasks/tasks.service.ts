@@ -66,6 +66,14 @@ export class TasksService {
     }
 
     /**
+     * Delete all tasks associated with a repository
+     */
+    async deleteTasksByRepository(repoId: string): Promise<void> {
+        await this.taskRepo.delete({ repository: { id: repoId } });
+        this.logger.log(`Deleted all tasks for repository ${repoId}`);
+    }
+
+    /**
      * Auto-sync newly created task to Trello if integration is enabled
      */
     private async autoSyncTaskToTrello(task: Task): Promise<void> {
@@ -472,6 +480,8 @@ export class TasksService {
                     this.taskRepo.create({
                         ...task,
                         repository: repo,
+                        addedBy: repo.user?.name || owner,
+                        addedAt: new Date(),
                     })
                 );
 

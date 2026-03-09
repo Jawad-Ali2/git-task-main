@@ -9,7 +9,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   // Track scan toast IDs per repository to update them in place
   const scanToastIds = useRef<Map<string, string | number>>(new Map());
   const { notifications, isConnected } = useNotificationContext();
-  const processedNotifications = useRef<Set<string>>(new Set());
+  const processedNotifications = useRef<Set<string> | null>(null);
+
+  // On first render, seed processedNotifications with existing notifications
+  // so that localStorage-persisted notifications are not re-toasted on refresh.
+  if (processedNotifications.current === null) {
+    const initial = new Set<string>();
+    notifications.forEach((n) => {
+      initial.add(`${n.type}-${n.timestamp}`);
+    });
+    processedNotifications.current = initial;
+  }
 
   useEffect(() => {
     // Process new notifications
@@ -17,11 +27,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       const notificationId = `${notification.type}-${notification.timestamp}`;
       
       // Skip if already processed
-      if (processedNotifications.current.has(notificationId)) {
+      if (processedNotifications?.current?.has(notificationId)) {
         return;
       }
       
-      processedNotifications.current.add(notificationId);
+      processedNotifications?.current?.add(notificationId);
       handleNotification(notification);
     });
   }, [notifications]);

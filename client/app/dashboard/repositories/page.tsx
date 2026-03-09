@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/authHook';
 import axiosInstance from '@/lib/axios';
 import { AddRepositoryModal, RepoTable } from '@/components/dashboard';
 import { ShareToTeamModal } from '@/components/teams';
+import { toast } from 'sonner';
 
 interface Repository {
   id: string;
@@ -72,7 +73,7 @@ export default function RepositoriesPage() {
       setRepositories(reposWithIntegrations);
     } catch (error) {
       console.error('Failed to fetch repositories:', error);
-      alert('Failed to fetch repositories');
+      toast.error('Failed to fetch repositories');
     } finally {
       setLoading(false);
     }
@@ -94,10 +95,10 @@ export default function RepositoriesPage() {
       // Update local state
       setRepositories((prev) => prev.filter((r) => r.id !== repoId));
 
-      alert(`${repo.name} has been removed`);
+      toast.success(`${repo.name} has been removed`);
     } catch (error: any) {
       console.error('Failed to delete repository:', error);
-      alert(error.response?.data?.message || 'Failed to delete repository');
+      toast.error(error.response?.data?.message || 'Failed to delete repository');
     }
   };
 

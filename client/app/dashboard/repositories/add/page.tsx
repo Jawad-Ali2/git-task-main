@@ -8,6 +8,7 @@ import axiosInstance from '@/lib/axios';
 import { useRouter } from 'next/navigation';
 import { useAppDispatch } from '@/redux/hooks';
 import { addNotification } from '@/redux/scanNotificationSlice';
+import { toast } from 'sonner';
 
 interface Repository {
   githubId: string;
@@ -69,7 +70,7 @@ export default function RepositoriesPage() {
       newSelected.delete(githubId);
     } else {
       if (newSelected.size >= 20) {
-        alert('You can only save up to 20 repositories');
+        toast.warning('You can only save up to 20 repositories');
         return;
       }
       newSelected.add(githubId);
@@ -85,7 +86,7 @@ export default function RepositoriesPage() {
       );
 
       if (newRepos.length === 0) {
-        alert('No new repositories to save');
+        toast.warning('No new repositories to save');
         return;
       }
 
@@ -106,7 +107,7 @@ export default function RepositoriesPage() {
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Failed to save repositories:', error);
-      alert(error.response?.data?.message || 'Failed to save repositories');
+      toast.error(error.response?.data?.message || 'Failed to save repositories');
     } finally {
       setSaving(false);
     }

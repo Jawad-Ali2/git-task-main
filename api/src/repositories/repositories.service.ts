@@ -429,6 +429,9 @@ export class RepositoriesService {
         });
 
         if (repo) {
+            // Delete associated tasks first to avoid FK constraint violation
+            await this.tasksService.deleteTasksByRepository(repo.id);
+
             await this.repoEntity.remove(repo);
             this.logger.log(`Removed repository ${githubId} for user ${userId}`);
             
@@ -479,6 +482,9 @@ export class RepositoriesService {
                 }
             }
         }
+
+        // Delete associated tasks first to avoid FK constraint violation
+        await this.tasksService.deleteTasksByRepository(repoId);
 
         await this.repoEntity.remove(repo);
         this.logger.log(`Deleted repository ${repoId} for user ${userId}`);
