@@ -93,6 +93,9 @@ export class TaskTreeItem extends vscode.TreeItem {
 		if (task.type === 'hack') {
 			return new vscode.ThemeIcon('flame');
 		}
+		if (task.type === 'note') {
+			return new vscode.ThemeIcon('note');
+		}
 		return new vscode.ThemeIcon('circle-large-outline');
 	}
 }

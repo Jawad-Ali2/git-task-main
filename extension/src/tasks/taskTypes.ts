@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 
 export type TaskStatus = 'active' | 'in-progress' | 'done';
 
-export type TaskType = 'todo' | 'fixme' | 'hack' | 'structured';
+export type TaskType = 'todo' | 'fixme' | 'hack' | 'note' | 'structured';
 
 export interface CodeTask {
 	readonly id: string;

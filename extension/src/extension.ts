@@ -105,6 +105,7 @@ export async function activate(
           { label: "TODO", value: "todo" },
           { label: "FIXME", value: "fixme" },
           { label: "HACK", value: "hack" },
+          { label: "NOTE", value: "note" },
           { label: "Structured (@task)", value: "structured" },
         ],
         {
@@ -280,11 +281,30 @@ async function markTaskAsResolved(
       // Use task.line directly as it's always present and is 0-based
       const lineNumber = task.line;
       const lineToDelete = document.lineAt(lineNumber);
+      let endLine = lineNumber + 1;
+
+      // For structured comments, check if the next line is part of the task description
+      if (task.type === 'structured' && lineNumber + 1 < document.lineCount) {
+        const nextLine = document.lineAt(lineNumber + 1);
+        const nextLineText = nextLine.text.trim();
+        
+        // Check if next line is a comment (starts with //, #, or --)
+        // and doesn't start with @task (which would be a new task)
+        if (
+          (nextLineText.startsWith('//') || 
+           nextLineText.startsWith('#') || 
+           nextLineText.startsWith('--')) &&
+          !nextLineText.substring(nextLineText.search(/[/#-]/) + nextLineText.match(/[/#-]+/)![0].length).trim().startsWith('@task')
+        ) {
+          endLine = lineNumber + 2;
+        }
+      }
+
       const rangeToDelete = new vscode.Range(
         lineToDelete.range.start,
-        lineNumber + 1 < document.lineCount
-          ? document.lineAt(lineNumber + 1).range.start
-          : lineToDelete.range.end,
+        endLine < document.lineCount
+          ? document.lineAt(endLine).range.start
+          : document.lineAt(endLine - 1).range.end,
       );
 
       edit.delete(task.fileUri, rangeToDelete);

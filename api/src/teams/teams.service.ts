@@ -74,9 +74,9 @@ export class TeamsService {
   async getMyTeams(userId: string): Promise<any[]> {
     const memberships = await this.teamMemberRepository.find({
       where: { userId },
-      relations: ['team', 'team.createdBy', 'team.members'],
+      relations: ['team', 'team.createdBy', 'team.members', 'team.repositories'],
     });
-
+    
     return memberships.map((m) => ({
       ...m.team,
       role: m.role,

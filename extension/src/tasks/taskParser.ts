@@ -149,7 +149,7 @@ export class TaskParser {
 	}
 
 	private parseSimpleTaskComment(commentText: string, document: vscode.TextDocument, line: number): CodeTask | undefined {
-		const match = commentText.match(/\b(TODO|FIXME|HACK)\b[:\-]?\s*(.*)$/i); // ? - optional colon or dash after the keyword, i - case insensitive
+		const match = commentText.match(/\b(TODO|FIXME|HACK|NOTE)\b[:\-]?\s*(.*)$/i); // ? - optional colon or dash after the keyword, i - case insensitive
 		if (!match) {
 			return undefined;
 		}
@@ -167,7 +167,7 @@ export class TaskParser {
 			label = label.replace(authorMatch[0], '').trim();
 		}
 
-		const type: TaskType = (rawType === 'todo' || rawType === 'fixme' || rawType === 'hack')
+		const type: TaskType = (rawType === 'todo' || rawType === 'fixme' || rawType === 'hack' || rawType === 'note')
 			? rawType as TaskType
 			: 'todo';
 
