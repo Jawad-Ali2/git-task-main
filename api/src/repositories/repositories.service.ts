@@ -150,7 +150,9 @@ export class RepositoriesService {
                 pagination: {
                     page,
                     perPage,
-                    hasMore: repos.length === perPage // Simple check for more pages
+                    hasMore: repos.length === perPage, // Simple check for more pages
+                    total: response.headers['x-total-count'] ? parseInt(response.headers['x-total-count']) : undefined,
+                    totalPages: response.headers['x-total-count'] ? Math.ceil(parseInt(response.headers['x-total-count']) / perPage) : undefined
                 }
             };
 

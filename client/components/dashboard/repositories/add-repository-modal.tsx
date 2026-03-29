@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import axiosInstance from '@/lib/axios';
 import { useAppDispatch } from '@/redux/hooks';
 import { addNotification } from '@/redux/scanNotificationSlice';
+import { fetchRepositories } from '@/redux/repositoriesSlice';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Table,
@@ -54,6 +55,8 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const dispatch = useAppDispatch();
 
   const fetchRepos = async (pageNum: number = 1, searchTerm: string = '') => {
@@ -75,6 +78,8 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
       }
 
       setHasMore(response.data.pagination.hasMore);
+      setTotalPages(response.data.pagination.totalPages || 1);
+      setTotalCount(response.data.pagination.total || 0);
     } catch (error) {
       console.error('Failed to fetch repositories:', error);
     } finally {
@@ -84,6 +89,8 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
 
   useEffect(() => {
     if (open) {
+      setPage(1);
+      setRepos([]);
       fetchRepos(1, search);
     }
   }, [open, search]);
@@ -101,6 +108,11 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
     }
     setSelectedRepos(newSelected);
   };
+
+  // Calculate the count of NEW repositories (excluding already saved ones)
+  const newReposCount = Array.from(selectedRepos).filter(
+    id => !repos.find(r => r.githubId === id)?.isSaved
+  ).length;
 
   const handleSave = async () => {
     setSaving(true);
@@ -129,8 +141,16 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
         }));
       }
 
+      toast.success(`Successfully added ${newRepos.length} repository(ies)`);
+
       onOpenChange(false);
-      onSuccess();
+      
+      // Refresh both the dashboard callback and Redux store
+      setTimeout(() => {
+        onSuccess();
+        // Refresh the Redux store for the sidebar
+        dispatch(fetchRepositories());
+      }, 300);
     } catch (error: any) {
       console.error('Failed to save repositories:', error);
       toast.error(error.response?.data?.message || 'Failed to save repositories');
@@ -151,7 +171,7 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
         <DialogHeader className="px-6 pt-6">
           <DialogTitle>Add Repositories</DialogTitle>
           <DialogDescription>
-            Select repositories to monitor for tasks. {selectedRepos.size} / 20 selected
+            Select repositories to monitor for tasks. {newReposCount} new / {selectedRepos.size} selected
           </DialogDescription>
         </DialogHeader>
 
@@ -246,15 +266,23 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
                 </div>
 
                 {/* Load More Button - Outside ScrollArea */}
-                <div className="flex items-center justify-center mt-4">
-                  {loading && repos.length > 0 && (
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  )}
-                  {hasMore && !loading && (
-                    <Button onClick={handleLoadMore} variant="outline" size="sm">
-                      Load More
-                    </Button>
-                  )}
+                <div className="flex items-center justify-between mt-4 px-2">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {Math.min(repos.length, 30 * page)} of {totalCount} repositories
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {loading && repos.length > 0 && (
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    )}
+                    {hasMore && !loading && (
+                      <Button onClick={handleLoadMore} variant="outline" size="sm">
+                        Load More (Page {page} of {totalPages})
+                      </Button>
+                    )}
+                    {!hasMore && repos.length > 0 && (
+                      <p className="text-sm text-muted-foreground">All repositories loaded</p>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -315,15 +343,23 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
                 </ScrollArea>
 
                 {/* Load More Button - Outside ScrollArea */}
-                <div className="flex items-center justify-center mt-4">
-                  {loading && repos.length > 0 && (
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  )}
-                  {hasMore && !loading && (
-                    <Button onClick={handleLoadMore} variant="outline" size="sm">
-                      Load More
-                    </Button>
-                  )}
+                <div className="flex items-center justify-between mt-4 px-2">
+                  <div className="text-sm text-muted-foreground">
+                    Showing {Math.min(repos.length, 30 * page)} of {totalCount} repositories
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {loading && repos.length > 0 && (
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    )}
+                    {hasMore && !loading && (
+                      <Button onClick={handleLoadMore} variant="outline" size="sm">
+                        Load More (Page {page} of {totalPages})
+                      </Button>
+                    )}
+                    {!hasMore && repos.length > 0 && (
+                      <p className="text-sm text-muted-foreground">All repositories loaded</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </>
@@ -334,7 +370,7 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || selectedRepos.size === 0}>
+          <Button onClick={handleSave} disabled={saving || newReposCount === 0}>
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -343,7 +379,7 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
             ) : (
               <>
                 <Check className="h-4 w-4 mr-2" />
-                Add Selected ({selectedRepos.size})
+                Add Selected ({newReposCount})
               </>
             )}
           </Button>

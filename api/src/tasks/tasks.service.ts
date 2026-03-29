@@ -970,6 +970,9 @@ export class TasksService {
             }
 
             const matchedExistingIds = new Set<string>();
+            
+            // Line shift tolerance: tasks can match if they're within ±5 lines of old position
+            const LINE_SHIFT_TOLERANCE = 5;
 
         for (const currentTask of currentTasks) {
             const identifier = `${currentTask.filePath}:${currentTask.lineNumber}:${currentTask.type}:${this.normalizeDescription(currentTask.description)}`;
@@ -984,6 +987,24 @@ export class TasksService {
             const candidates = existingByDescType.get(descKey) || [];
 
             let chosen: Task | undefined = candidates.find(c => c.filePath === filePath && !matchedExistingIds.has(c.id));
+            
+            // ✅ FIX: When no exact file match, prefer tasks with line numbers close to current position
+            // This prevents line shifts from being incorrectly matched
+            if (!chosen) {
+                const candidatesInRange = candidates.filter(
+                    c => !matchedExistingIds.has(c.id) && 
+                         Math.abs(c.lineNumber - currentTask.lineNumber) <= LINE_SHIFT_TOLERANCE
+                );
+                if (candidatesInRange.length > 0) {
+                    // Pick the one with the closest line number
+                    chosen = candidatesInRange.reduce((closest, c) => 
+                        Math.abs(c.lineNumber - currentTask.lineNumber) < Math.abs(closest.lineNumber - currentTask.lineNumber) 
+                            ? c 
+                            : closest
+                    );
+                }
+            }
+            
             if (!chosen) chosen = candidates.find(c => !matchedExistingIds.has(c.id));
 
             if (!chosen && candidates.length > 0) {
@@ -993,13 +1014,22 @@ export class TasksService {
                     if (matchedExistingIds.has(c.id)) continue;
                     const normCandidate = this.normalizeDescription(c.description);
                     const score = this.similarity(normCurrent, normCandidate);
-                    if (!best || score > best.score) best = { candidate: c, score };
+                    
+                    // ✅ FIX: Only fuzzy match if line numbers are reasonably close
+                    // This prevents matching tasks that just happened to be on nearby lines
+                    const isLineClose = Math.abs(c.lineNumber - currentTask.lineNumber) <= LINE_SHIFT_TOLERANCE;
+                    const adjustedScore = isLineClose ? score : score * 0.5; // Penalize distant line matches
+                    
+                    if (!best || adjustedScore > best.score) {
+                        best = { candidate: c, score: adjustedScore };
+                    }
                 }
                 if (best && best.score >= this.FUZZY_MATCH_THRESHOLD) {
                     chosen = best.candidate;
                     this.logger.log(
                         `🔎 Fuzzy matched task "${this.redactSensitive(currentTask.description)}" -> ` +
-                        `"${this.redactSensitive(chosen.description)}" (score=${best.score.toFixed(2)})`
+                        `"${this.redactSensitive(chosen.description)}" (score=${best.score.toFixed(2)}, ` +
+                        `line ${chosen.lineNumber} → ${currentTask.lineNumber})`
                     );
                 }
             }
