@@ -32,6 +32,7 @@ import {
   AlertCircle,
   ClipboardList,
   AlertTriangle,
+  Users,
 } from 'lucide-react';
 
 export default function MyTasksPage() {
@@ -123,6 +124,11 @@ export default function MyTasksPage() {
   };
 
   const TaskCard = ({ task }: { task: TeamTask }) => (
+    (() => {
+      const hasTeamOrigin = !!task.origins?.some((origin) => origin.type === 'team' && origin.teamId);
+      const hasRepositoryOrigin = !!task.origins?.some((origin) => origin.type === 'repository');
+
+      return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
@@ -137,13 +143,36 @@ export default function MyTasksPage() {
 
             <p className="font-medium mb-1 line-clamp-2">{task.description}</p>
 
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              {task.origins?.filter((origin) => origin.type === 'team' && origin.teamId).map((origin) => (
+                <Link
+                  key={origin.teamId}
+                  href={`/dashboard/teams/${origin.teamId}/tasks`}
+                  className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border bg-muted/40 hover:bg-muted"
+                >
+                  <Users className="h-3 w-3" />
+                  Team: {origin.teamName || 'Team'}
+                </Link>
+              ))}
+
+              {hasRepositoryOrigin && (
+                <Link
+                  href={`/dashboard/repositories/${task.repository.id}/tasks`}
+                  className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full border bg-muted/40 hover:bg-muted"
+                >
+                  Repo: {task.repository.name}
+                </Link>
+              )}
+
+              {!hasTeamOrigin && !hasRepositoryOrigin && (
+                <span className="inline-flex items-center text-xs px-2 py-1 rounded-full border bg-muted/40 text-muted-foreground">
+                  Task
+                </span>
+              )}
+            </div>
+
             <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              <Link 
-                href={`/dashboard/repositories`}
-                className="hover:text-primary flex items-center gap-1"
-              >
-                {task.repository.name}
-              </Link>
+              <span>{task.repository.name}</span>
               <span className="flex items-center gap-1">
                 <FileCode className="h-3 w-3" />
                 {task.filePath}:{task.lineNumber}
@@ -176,6 +205,8 @@ export default function MyTasksPage() {
         </div>
       </CardContent>
     </Card>
+      );
+    })()
   );
 
   const TaskSection = ({

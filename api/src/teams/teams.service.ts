@@ -35,6 +35,12 @@ export class TeamsService {
     private activityLogService: ActivityLogService,
   ) {}
 
+  private toCanonicalStatus(status: string): string {
+    if (status === 'pending') return 'open';
+    if (status === 'completed') return 'done';
+    return status;
+  }
+
   /**
    * Generate a random 8-character invite code
    */
@@ -536,12 +542,25 @@ export class TeamsService {
       task.dueDate = dueDate;
     }
 
-    // Update status to in-progress if it was open
-    if (task.status === 'open') {
+    const currentStatus = this.toCanonicalStatus(task.status);
+
+    // Update status to in-progress if it was open/pending
+    if (currentStatus === 'open') {
       task.status = 'in-progress';
+    } else if (task.status !== currentStatus) {
+      task.status = currentStatus;
     }
 
-    const savedTask = await this.taskRepository.save(task);
+    await this.taskRepository.save(task);
+
+    const savedTask = await this.taskRepository.findOne({
+      where: { id: task.id },
+      relations: ['repository', 'assignedTo', 'assignedBy'],
+    });
+
+    if (!savedTask) {
+      throw new NotFoundException('Task not found after assignment');
+    }
 
     // Get assignee name for activity log
     const assignee = await this.userRepository.findOne({ where: { id: assignToUserId } });
@@ -607,25 +626,93 @@ export class TeamsService {
     task.assignedAt = null;
     task.dueDate = null;
 
+    const currentStatus = this.toCanonicalStatus(task.status);
+
     // Revert status to open if it was in-progress
-    if (task.status === 'in-progress') {
+    if (currentStatus === 'in-progress') {
       task.status = 'open';
+    } else if (task.status !== currentStatus) {
+      task.status = currentStatus;
     }
 
-    return this.taskRepository.save(task);
+    await this.taskRepository.save(task);
+
+    const savedTask = await this.taskRepository.findOne({
+      where: { id: task.id },
+      relations: ['repository', 'assignedTo', 'assignedBy'],
+    });
+
+    if (!savedTask) {
+      throw new NotFoundException('Task not found after unassignment');
+    }
+
+    return savedTask;
   }
 
   /**
    * Get tasks assigned to current user (across all teams)
    */
-  async getMyAssignedTasks(userId: string): Promise<Task[]> {
-    return this.taskRepository.find({
+  async getMyAssignedTasks(userId: string): Promise<any[]> {
+    const tasks = await this.taskRepository.find({
       where: { assignedToId: userId },
-      relations: ['repository', 'assignedBy'],
+      relations: ['repository', 'repository.user', 'assignedBy'],
       order: {
         dueDate: 'ASC',
         assignedAt: 'DESC',
       },
+    });
+
+    if (tasks.length === 0) {
+      return [];
+    }
+
+    const repositoryIds = Array.from(new Set(tasks.map((task) => task.repository?.id).filter(Boolean)));
+
+    const teamRepos = repositoryIds.length
+      ? await this.teamRepoRepository.find({
+          where: { repositoryId: In(repositoryIds) },
+          relations: ['team', 'team.members'],
+        })
+      : [];
+
+    const teamOriginsByRepo = new Map<string, Array<{ teamId: string; teamName: string }>>();
+
+    for (const tr of teamRepos) {
+      const isUserInTeam = tr.team?.members?.some((member) => member.userId === userId);
+      if (!isUserInTeam) continue;
+
+      const existing = teamOriginsByRepo.get(tr.repositoryId) || [];
+      existing.push({
+        teamId: tr.team.id,
+        teamName: tr.team.name,
+      });
+      teamOriginsByRepo.set(tr.repositoryId, existing);
+    }
+
+    return tasks.map((task) => {
+      const repoId = task.repository?.id;
+      const teamOrigins = repoId ? teamOriginsByRepo.get(repoId) || [] : [];
+      const isRepositoryOwner = task.repository?.user?.id === userId;
+
+      const origins: Array<
+        { type: 'team'; teamId: string; teamName: string } |
+        { type: 'repository' }
+      > = teamOrigins.map((team): { type: 'team'; teamId: string; teamName: string } => ({
+        type: 'team',
+        teamId: team.teamId,
+        teamName: team.teamName,
+      }));
+
+      if (isRepositoryOwner) {
+        origins.push({
+          type: 'repository',
+        });
+      }
+
+      return {
+        ...task,
+        origins,
+      };
     });
   }
 

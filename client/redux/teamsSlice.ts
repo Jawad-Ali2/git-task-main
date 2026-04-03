@@ -54,6 +54,11 @@ export interface TeamTask {
     name: string;
     url: string;
   };
+  origins?: Array<{
+    type: 'team' | 'repository';
+    teamId?: string;
+    teamName?: string;
+  }>;
 }
 
 export interface TeamRepository {
@@ -273,6 +278,17 @@ const initialState: TeamsState = {
   activityLoading: false,
   memberProgressLoading: false,
 };
+
+const normalizeTeamTaskStatus = (status: string): string => {
+  if (status === 'pending') return 'open';
+  if (status === 'completed') return 'done';
+  return status;
+};
+
+const normalizeTeamTask = (task: TeamTask): TeamTask => ({
+  ...task,
+  status: normalizeTeamTaskStatus(task.status),
+});
 
 // ============ Async Thunks ============
 
@@ -776,7 +792,7 @@ const teamsSlice = createSlice({
       })
       .addCase(fetchTeamTasks.fulfilled, (state, action: PayloadAction<TeamTask[]>) => {
         state.tasksLoading = false;
-        state.teamTasks = action.payload;
+        state.teamTasks = action.payload.map(normalizeTeamTask);
       })
       .addCase(fetchTeamTasks.rejected, (state, action) => {
         state.tasksLoading = false;
@@ -794,10 +810,11 @@ const teamsSlice = createSlice({
       })
       .addCase(assignTask.fulfilled, (state, action: PayloadAction<TeamTask>) => {
         state.assignLoading = false;
+        const normalizedTask = normalizeTeamTask(action.payload);
         // Update the task in teamTasks array
-        const index = state.teamTasks.findIndex((t) => t.id === action.payload.id);
+        const index = state.teamTasks.findIndex((t) => t.id === normalizedTask.id);
         if (index !== -1) {
-          state.teamTasks[index] = action.payload;
+          state.teamTasks[index] = normalizedTask;
         }
       })
       .addCase(assignTask.rejected, (state, action) => {
@@ -811,10 +828,11 @@ const teamsSlice = createSlice({
       })
       .addCase(unassignTask.fulfilled, (state, action: PayloadAction<TeamTask>) => {
         state.assignLoading = false;
+        const normalizedTask = normalizeTeamTask(action.payload);
         // Update the task in teamTasks array
-        const index = state.teamTasks.findIndex((t) => t.id === action.payload.id);
+        const index = state.teamTasks.findIndex((t) => t.id === normalizedTask.id);
         if (index !== -1) {
-          state.teamTasks[index] = action.payload;
+          state.teamTasks[index] = normalizedTask;
         }
       })
       .addCase(unassignTask.rejected, (state, action) => {
@@ -829,7 +847,7 @@ const teamsSlice = createSlice({
       })
       .addCase(fetchMyAssignedTasks.fulfilled, (state, action: PayloadAction<TeamTask[]>) => {
         state.tasksLoading = false;
-        state.myAssignedTasks = action.payload;
+        state.myAssignedTasks = action.payload.map(normalizeTeamTask);
       })
       .addCase(fetchMyAssignedTasks.rejected, (state, action) => {
         state.tasksLoading = false;
