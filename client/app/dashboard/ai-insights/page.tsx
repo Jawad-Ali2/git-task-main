@@ -14,6 +14,7 @@ import {
 } from '@/redux/repositoriesSlice';
 import { BrainCircuit, Loader2, RefreshCw } from 'lucide-react';
 import { EmptyState, PageHeader } from '@/components/common';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -62,13 +63,7 @@ export default function AiInsightsPage() {
 
   // ── Loading state ──
   if (loading && !data) {
-    return (
-      <EmptyState
-        loading
-        loadingText="Analyzing your codebase — this may take a moment..."
-        title=""
-      />
-    );
+    return <DashboardSectionSkeleton cards={3} rows={6} />;
   }
 
   // ── Error state ──

@@ -10,6 +10,7 @@ import {
 } from '@/redux/teamsSlice';
 import { TeamCard, CreateTeamModal } from '@/components/teams';
 import { EmptyState, PageHeader } from '@/components/common';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Users, Plus, Search, UserPlus } from 'lucide-react';
@@ -32,7 +33,7 @@ export default function TeamsPage() {
   );
 
   if (loading && teams.length === 0) {
-    return <EmptyState loading={true} loadingText="Loading teams..." title="" />;
+    return <DashboardSectionSkeleton cards={2} rows={5} />;
   }
 
   if (error) {

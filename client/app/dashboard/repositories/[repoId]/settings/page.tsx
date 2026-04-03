@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import axiosInstance from '@/lib/axios';
 import { toast } from 'sonner';
+import { DashboardFormSkeleton } from '@/components/common/page-loading';
 import TrelloConfigModal from '@/components/trello-config-modal';
 import JiraConfigModal from '@/components/jira-config-modal';
 import SyncConfirmationModal from '@/components/sync-confirmation-modal';
@@ -167,11 +168,7 @@ export default function RepositorySettingsPage() {
   const jiraConnection = userConnections.find((c) => c.provider === 'jira');
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardFormSkeleton />;
   }
 
   if (!repository) {

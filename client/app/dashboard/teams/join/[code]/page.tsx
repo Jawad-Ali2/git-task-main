@@ -16,17 +16,15 @@ import {
 } from '@/redux/teamsSlice';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { EmptyState, PageHeader } from '@/components/common';
-import { Loader2, Users, ArrowLeft, CheckCircle, Shield, Code, XCircle } from 'lucide-react';
+import { DashboardFormSkeleton } from '@/components/common/page-loading';
+import { Loader2, Users, ArrowLeft, CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 
 export default function JoinTeamByCodePage() {
   const params = useParams();
   const inviteCode = (params.code as string)?.toUpperCase();
-  const [selectedRole, setSelectedRole] = useState<'developer' | 'pm'>('developer');
   const dispatch = useAppDispatch();
   const router = useRouter();
   const teamPreview = useAppSelector(selectTeamPreview);
@@ -47,7 +45,7 @@ export default function JoinTeamByCodePage() {
   const handleJoin = async () => {
     if (!inviteCode) return;
 
-    const result = await dispatch(joinTeam({ inviteCode, role: selectedRole }));
+    const result = await dispatch(joinTeam({ inviteCode }));
     
     if (joinTeam.fulfilled.match(result)) {
       toast.success('Successfully joined the team!');
@@ -57,7 +55,7 @@ export default function JoinTeamByCodePage() {
   };
 
   if (loading) {
-    return <EmptyState loading={true} loadingText="Looking up team..." title="" />;
+    return <DashboardFormSkeleton />;
   }
 
   if (error) {
@@ -96,7 +94,7 @@ export default function JoinTeamByCodePage() {
   }
 
   if (!teamPreview) {
-    return <EmptyState loading={true} loadingText="Looking up team..." title="" />;
+    return <DashboardFormSkeleton />;
   }
 
   return (
@@ -127,43 +125,8 @@ export default function JoinTeamByCodePage() {
               {teamPreview.memberCount} {teamPreview.memberCount === 1 ? 'member' : 'members'}
             </p>
           </div>
-          
-          <div className="space-y-3">
-            <Label>Join as:</Label>
-            <div className="grid gap-2">
-              <button
-                type="button"
-                onClick={() => setSelectedRole('developer')}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg border p-4 text-left hover:bg-muted/50 transition-colors",
-                  selectedRole === 'developer' && "border-primary bg-primary/5"
-                )}
-              >
-                <Code className="h-5 w-5 text-green-500" />
-                <div>
-                  <p className="font-medium">Developer</p>
-                  <p className="text-sm text-muted-foreground">
-                    Write code, complete tasks, share repositories
-                  </p>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRole('pm')}
-                className={cn(
-                  "flex items-center gap-3 rounded-lg border p-4 text-left hover:bg-muted/50 transition-colors",
-                  selectedRole === 'pm' && "border-primary bg-primary/5"
-                )}
-              >
-                <Shield className="h-5 w-5 text-blue-500" />
-                <div>
-                  <p className="font-medium">Project Manager</p>
-                  <p className="text-sm text-muted-foreground">
-                    Manage team, assign tasks, view analytics
-                  </p>
-                </div>
-              </button>
-            </div>
+          <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+            New members join as <span className="font-medium text-foreground">Developer</span> by default.
           </div>
         </CardContent>
         <CardFooter className="flex justify-end gap-3">

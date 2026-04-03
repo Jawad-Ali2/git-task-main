@@ -56,6 +56,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 import {
   ArrowLeft,
   Loader2,
@@ -212,11 +213,7 @@ export default function TeamTasksPage() {
   };
 
   if (!team) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSectionSkeleton cards={2} rows={6} />;
   }
 
   return (
@@ -321,9 +318,7 @@ export default function TeamTasksPage() {
 
       {/* Tasks List */}
       {loading ? (
-        <div className="flex items-center justify-center min-h-[200px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+        <DashboardSectionSkeleton cards={0} rows={6} />
       ) : filteredTasks.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">

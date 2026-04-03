@@ -17,6 +17,19 @@ import type { IntegrationsService } from '../integrations/services/integrations.
 export class TasksController {
     private readonly logger = new Logger(TasksController.name);
 
+    private toClientStatus(status: string): string {
+        if (status === 'open') return 'pending';
+        if (status === 'done') return 'completed';
+        return status;
+    }
+
+    private mapTaskToClient(task: Task): Task {
+        return {
+            ...task,
+            status: this.toClientStatus(task.status),
+        };
+    }
+
     constructor(
         private readonly tasksService: TasksService,
         private readonly aiInsightsService: AiInsightsService,
@@ -94,7 +107,7 @@ export class TasksController {
             order: { filePath: 'ASC', lineNumber: 'ASC' },
         })
 
-        return tasks;
+        return tasks.map((task) => this.mapTaskToClient(task));
     }
 
 
@@ -107,13 +120,15 @@ export class TasksController {
     async getAllUserTasks(@Req() req: Request): Promise<Task[]> {
         const user = (req as any).user;
 
-        return await this.taskRepo
+        const tasks = await this.taskRepo
             .createQueryBuilder('task')
             .leftJoinAndSelect('task.repository', 'repository')
             .where('repository.userId = :userId', { userId: user.userId }) // Change this line
             .orderBy('repository.name', 'ASC')
             .addOrderBy('task.filePath', 'ASC')
             .getMany();
+
+        return tasks.map((task) => this.mapTaskToClient(task));
     }
 
     /**
@@ -192,7 +207,7 @@ export class TasksController {
             }
         }
 
-        return updatedTask;
+        return this.mapTaskToClient(updatedTask);
     }
 
     /**

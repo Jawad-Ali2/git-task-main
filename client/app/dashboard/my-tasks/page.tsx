@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 import {
-  Loader2,
   Search,
   FileCode,
   ExternalLink,
@@ -316,9 +316,7 @@ export default function MyTasksPage() {
 
       {/* Tasks */}
       {loading ? (
-        <div className="flex items-center justify-center min-h-[200px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
+          <DashboardSectionSkeleton cards={0} rows={6} />
       ) : tasks.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">

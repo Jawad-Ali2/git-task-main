@@ -16,6 +16,7 @@ import {
 } from '@/redux/teamsSlice';
 import { selectCurrentUser } from '@/redux/authSlice';
 import { EmptyState, PageHeader } from '@/components/common';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -87,7 +88,7 @@ export default function MemberProgressPage() {
   }, [dispatch, teamId, memberId]);
 
   if (loading && !progress) {
-    return <EmptyState loading={true} loadingText="Loading member progress..." title="" />;
+    return <DashboardSectionSkeleton cards={2} rows={6} />;
   }
 
   if (error || !progress) {

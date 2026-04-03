@@ -2,10 +2,13 @@
 
 import { NavMain } from "@/components/dashboard/sidebar/nav-main";
 import { NavUser } from "@/components/dashboard/sidebar/nav-user";
-import { SidebarHeader, SidebarContent, SidebarFooter, Sidebar } from "@/components/ui/sidebar";
+import { SidebarHeader, SidebarContent, SidebarFooter, Sidebar, SidebarGroup, SidebarGroupLabel } from "@/components/ui/sidebar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/authHook";
-import { Bot, ClipboardList, Folder, FolderGit2, FolderLock, LayoutDashboard, ListTodo, Loader2, Users } from "lucide-react";
+import { Bot, ClipboardList, Folder, FolderGit2, FolderLock, LayoutDashboard, ListTodo, Users } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { NavProjects } from "./nav-projects";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { fetchRepositories, selectRepositories, selectRepositoriesLoading } from "@/redux/repositoriesSlice";
@@ -106,12 +109,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={mainMenuItems} />
         {repositoriesLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          </div>
+          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel>My Repositories</SidebarGroupLabel>
+            <div className="space-y-3 px-2 py-2">
+              {[1, 2, 3, 4].map((index) => (
+                <div key={index} className="flex items-center gap-3">
+                  <Skeleton className="h-4 w-4 rounded-sm" />
+                  <Skeleton className="h-4 flex-1" />
+                </div>
+              ))}
+            </div>
+          </SidebarGroup>
         ) : projects.length > 0 ? (
           <NavProjects projects={projects} />
-        ) : null}
+        ) : (
+          <SidebarGroup className="group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel>My Repositories</SidebarGroupLabel>
+            <div className="space-y-3 px-2 py-2 text-sm text-muted-foreground">
+              <p>No repositories yet. Add one to start tracking tasks.</p>
+              <Button asChild size="sm" variant="outline" className="w-full justify-start">
+                <Link href="/dashboard/repositories">
+                  Add Repository
+                </Link>
+              </Button>
+            </div>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter>
         {user && (

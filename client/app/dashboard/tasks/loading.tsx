@@ -1,0 +1,5 @@
+import { DashboardSectionSkeleton } from "@/components/common/page-loading";
+
+export default function Loading() {
+  return <DashboardSectionSkeleton cards={3} rows={8} />;
+}

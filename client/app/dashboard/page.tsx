@@ -11,6 +11,7 @@ import { DashboardStatsSection } from '@/components/dashboard/home/stats-section
 import { DashboardBreakdownSection } from '@/components/dashboard/home/breakdown-section';
 import { DashboardQuickActions } from '@/components/dashboard/home/quick-actions';
 import { EmptyState, PageHeader } from '@/components/common';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 
 // Lazy load heavy components that fetch their own data
 const TasksByRepositoryChart = lazy(() => 
@@ -45,7 +46,7 @@ export default function DashboardPage() {
   }, [dispatch]);
 
   if (loading && !stats) {
-    return <EmptyState loading={true} loadingText="Loading dashboard..." title="" />;
+    return <DashboardSectionSkeleton cards={4} rows={5} />;
   }
 
   if (!stats) {

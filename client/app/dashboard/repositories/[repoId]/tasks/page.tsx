@@ -11,8 +11,9 @@ import { selectRepositories } from '@/redux/repositoriesSlice';
 import { useTaskFilters } from '@/hooks/useTaskFilters';
 import { useTaskActions } from '@/hooks/useTaskActions';
 import { toast } from 'sonner';
-import { EmptyState, LoadingState, PageHeader } from '@/components/common';
+import { EmptyState, PageHeader } from '@/components/common';
 import { TaskCard, TaskCodeSnippetModal, TaskFilters, StatsCard } from '@/components/dashboard';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 
 
 interface Task {
@@ -222,11 +223,7 @@ export default function RepositoryTasksPage() {
     };
 
     if (loading) {
-        return <LoadingState text="Loading tasks..." />;
-    }
-
-    if (loading) {
-        return <LoadingState text="Loading tasks..." />;
+        return <DashboardSectionSkeleton cards={4} rows={8} />;
     }
 
     return (

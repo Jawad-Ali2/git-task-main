@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import axiosInstance from '@/lib/axios';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 
 interface ScanStatus {
   status: 'idle' | 'scanning' | 'completed' | 'failed';
@@ -170,12 +171,7 @@ export default function RepositoryTasksPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      </div>
-
-    );
+    return <DashboardSectionSkeleton cards={2} rows={8} />;
   }
 
   if (!repository) {

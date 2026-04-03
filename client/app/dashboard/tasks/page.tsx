@@ -7,6 +7,7 @@ import axiosInstance from '@/lib/axios';
 import { useTaskFilters } from '@/hooks/useTaskFilters';
 import { EmptyState, LoadingState, PageHeader } from '@/components/common';
 import { TaskCard, TaskCodeSnippetModal, TaskFilters } from '@/components/dashboard';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 
 interface Task {
   id: string;
@@ -86,7 +87,7 @@ export default function TasksPage() {
   };
 
   if (loading) {
-    return <LoadingState text="Loading tasks..." />;
+    return <DashboardSectionSkeleton cards={4} rows={8} />;
   }
 
   return (

@@ -46,6 +46,9 @@ const repositoriesSlice = createSlice({
     clearRepositories(state) {
       state.repositories = [];
     },
+    removeRepository(state, action: PayloadAction<string>) {
+      state.repositories = state.repositories.filter((repo) => repo.id !== action.payload);
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -65,7 +68,7 @@ const repositoriesSlice = createSlice({
   },
 });
 
-export const { clearError, clearRepositories } = repositoriesSlice.actions;
+export const { clearError, clearRepositories, removeRepository } = repositoriesSlice.actions;
 
 export const selectRepositories = (state: { repositories: RepositoriesState }) => state.repositories.repositories;
 export const selectRepositoriesLoading = (state: { repositories: RepositoriesState }) => state.repositories.loading;

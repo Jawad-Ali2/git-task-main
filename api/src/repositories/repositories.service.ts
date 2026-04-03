@@ -349,11 +349,22 @@ export class RepositoriesService {
 
     /**
      * Get only saved repositories from database.
+     * Also calculates average debt score from tasks.
      */
     async getSavedRepos(userId: string) {
-        return this.repoEntity.find({
+        const repos = await this.repoEntity.find({
             where: { user: { id: userId } },
-            order: { name: 'ASC' }
+            order: { name: 'ASC' },
+            relations: ['tasks']
+        });
+
+        // Calculate debt score for each repository
+        return repos.map(repo => {
+            if (repo.tasks && repo.tasks.length > 0) {
+                const avgDebt = repo.tasks.reduce((sum, task) => sum + (task.debt_score ?? 0), 0) / repo.tasks.length;
+                (repo as any).debt_score = Math.round(avgDebt * 10) / 10; // Round to 1 decimal place
+            }
+            return repo;
         });
     }
 
@@ -470,14 +481,6 @@ export class RepositoriesService {
                 try {
                     const repoFullName = repo.url.replace('https://github.com/', '').replace(/\/$/, '');
                     await this.deleteWebhookForRepo(repoFullName, decryptedToken);
-                    
-                    // ✅ Send success notification
-                    await this.notificationsService.emit(userId, {
-                        type: NotificationType.WEBHOOK_DELETED,
-                        title: 'Webhook Deleted',
-                        message: `Webhook removed for ${repoName}`,
-                        timestamp: new Date(),
-                    });
                 } catch (error) {
                     this.logger.error(`Failed to delete webhook for ${repo.name}: ${error.message}`);
                     // Continue with repo deletion even if webhook deletion fails

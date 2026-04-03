@@ -17,6 +17,7 @@ import {
 import { selectCurrentUser } from '@/redux/authSlice';
 import { MemberList, InviteModal, ActivityFeed } from '@/components/teams';
 import { EmptyState, PageHeader } from '@/components/common';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -132,7 +133,7 @@ export default function TeamDetailPage() {
   };
 
   if (loading && !team) {
-    return <EmptyState loading={true} loadingText="Loading team..." title="" />;
+    return <DashboardSectionSkeleton cards={2} rows={7} />;
   }
 
   if (error || !team) {

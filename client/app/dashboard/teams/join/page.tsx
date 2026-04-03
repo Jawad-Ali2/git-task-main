@@ -23,10 +23,10 @@ import { Loader2, Users, ArrowLeft, Search, CheckCircle, Shield, Code } from 'lu
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { DashboardFormSkeleton } from '@/components/common/page-loading';
 
 export default function JoinTeamPage() {
   const [inviteCode, setInviteCode] = useState('');
-  const [selectedRole, setSelectedRole] = useState<'developer' | 'pm'>('developer');
   const dispatch = useAppDispatch();
   const router = useRouter();
   const teamPreview = useAppSelector(selectTeamPreview);
@@ -45,9 +45,7 @@ export default function JoinTeamPage() {
   const handleJoin = async () => {
     if (!inviteCode.trim()) return;
 
-    const result = await dispatch(
-      joinTeam({ inviteCode: inviteCode.trim().toUpperCase(), role: selectedRole })
-    );
+    const result = await dispatch(joinTeam({ inviteCode: inviteCode.trim().toUpperCase() }));
     
     if (joinTeam.fulfilled.match(result)) {
       toast.success('Successfully joined the team!');
@@ -61,6 +59,10 @@ export default function JoinTeamPage() {
     if (error) dispatch(clearError());
     if (teamPreview) dispatch(clearTeamPreview());
   };
+
+  if (loading && !teamPreview) {
+    return <DashboardFormSkeleton />;
+  }
 
   return (
     <div className="space-y-6">
@@ -135,43 +137,8 @@ export default function JoinTeamPage() {
                   {teamPreview.memberCount} {teamPreview.memberCount === 1 ? 'member' : 'members'}
                 </p>
               </div>
-              
-              <div className="space-y-3">
-                <Label>Join as:</Label>
-                <div className="grid gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('developer')}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg border p-4 text-left hover:bg-muted/50 transition-colors",
-                      selectedRole === 'developer' && "border-primary bg-primary/5"
-                    )}
-                  >
-                    <Code className="h-5 w-5 text-green-500" />
-                    <div>
-                      <p className="font-medium">Developer</p>
-                      <p className="text-sm text-muted-foreground">
-                        Write code, complete tasks, share repositories
-                      </p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedRole('pm')}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg border p-4 text-left hover:bg-muted/50 transition-colors",
-                      selectedRole === 'pm' && "border-primary bg-primary/5"
-                    )}
-                  >
-                    <Shield className="h-5 w-5 text-blue-500" />
-                    <div>
-                      <p className="font-medium">Project Manager</p>
-                      <p className="text-sm text-muted-foreground">
-                        Manage team, assign tasks, view analytics
-                      </p>
-                    </div>
-                  </button>
-                </div>
+              <div className="rounded-lg border bg-muted/40 p-3 text-sm text-muted-foreground">
+                New members join as <span className="font-medium text-foreground">Developer</span> by default.
               </div>
             </CardContent>
             <CardFooter className="flex justify-end gap-3">

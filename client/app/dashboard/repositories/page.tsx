@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, FolderGit2, Loader2 } from 'lucide-react';
+import { Plus, FolderGit2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/authHook';
 import axiosInstance from '@/lib/axios';
 import { AddRepositoryModal, RepoTable } from '@/components/dashboard';
 import { ShareToTeamModal } from '@/components/teams';
 import { toast } from 'sonner';
+import { useAppDispatch } from '@/redux/hooks';
+import { removeRepository } from '@/redux/repositoriesSlice';
+import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 
 interface Repository {
   id: string;
@@ -29,6 +32,7 @@ interface Repository {
 
 export default function RepositoriesPage() {
   const { user } = useAuth();
+  const dispatch = useAppDispatch();
   const [repositories, setRepositories] = useState<Repository[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -94,6 +98,8 @@ export default function RepositoriesPage() {
 
       // Update local state
       setRepositories((prev) => prev.filter((r) => r.id !== repoId));
+      // Update global Redux state so sidebar reflects deletion instantly
+      dispatch(removeRepository(repoId));
 
       toast.success(`${repo.name} has been removed`);
     } catch (error: any) {
@@ -103,11 +109,7 @@ export default function RepositoriesPage() {
   };
 
   if (loading && repositories.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <DashboardSectionSkeleton cards={0} rows={7} />;
   }
 
   return (
