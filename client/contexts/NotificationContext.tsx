@@ -48,7 +48,13 @@ const SCAN_NOTIFICATION_TYPES = [
   NotificationType.SCAN_FAILED,
 ];
 
-export function NotificationContextProvider({ children }: { children: React.ReactNode }) {
+export function NotificationContextProvider({
+  children,
+  enabled = true,
+}: {
+  children: React.ReactNode;
+  enabled?: boolean;
+}) {
   const [isConnected, setIsConnected] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -199,12 +205,17 @@ export function NotificationContextProvider({ children }: { children: React.Reac
   };
 
   useEffect(() => {
+    if (!enabled) {
+      disconnect();
+      return;
+    }
+
     connect();
 
     return () => {
       disconnect();
     };
-  }, []);
+  }, [enabled]);
 
   return (
     <NotificationContext.Provider

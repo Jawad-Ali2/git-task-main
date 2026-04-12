@@ -1,7 +1,30 @@
+"use client";
+
 import { LoginForm } from "@/components/auth"
 import Image from 'next/image';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/authHook';
+import { CenteredLoader } from '@/components/common/page-loading';
 
 export default function LoginPage() {
+  const router = useRouter();
+  const { initialized, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (initialized && isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [initialized, isAuthenticated, router]);
+
+  if (!initialized) {
+    return <CenteredLoader label="Checking session..." />;
+  }
+
+  if (isAuthenticated) {
+    return <CenteredLoader label="Redirecting to dashboard..." />;
+  }
+
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">

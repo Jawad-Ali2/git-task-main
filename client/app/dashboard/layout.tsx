@@ -1,7 +1,8 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { AppSidebar } from "@/components/dashboard/sidebar/app-sidebar";
 import {
   Breadcrumb,
@@ -19,6 +20,8 @@ import {
 } from "@/components/ui/sidebar";
 import { NotificationProvider, ScanNotificationContainer } from '@/components/dashboard';
 import { NotificationContextProvider } from '@/contexts/NotificationContext';
+import { useAuth } from '@/hooks/authHook';
+import { CenteredLoader } from '@/components/common/page-loading';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -31,7 +34,19 @@ const routeLabels: Record<string, string> = {
 };
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
+  const router = useRouter();
   const pathname = usePathname();
+  const { initialized, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (initialized && !isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [initialized, isAuthenticated, router]);
+
+  if (!initialized || !isAuthenticated) {
+    return <CenteredLoader label="Checking authentication..." />;
+  }
 
   // Generate breadcrumbs based on current path
   const generateBreadcrumbs = () => {
@@ -74,7 +89,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const breadcrumbs = generateBreadcrumbs();
   return (
-    <NotificationContextProvider>
+    <NotificationContextProvider enabled={isAuthenticated}>
       <NotificationProvider>
         <SidebarProvider>
           <AppSidebar />
