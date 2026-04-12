@@ -19,6 +19,7 @@ export interface TrelloConfig {
 export interface JiraConfig {
   cloudId?: string;
   cloudName?: string;
+  siteUrl?: string;
   projectId?: string;
   projectKey?: string;
   projectName?: string;
@@ -114,7 +115,6 @@ const initialState: IntegrationsState = {
   jiraProjects: [],
   jiraIssueTypes: [],
   jiraStatuses: [],
-  trelloLists: [],
   loading: false,
   error: null,
   syncStatus: {
