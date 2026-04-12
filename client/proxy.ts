@@ -6,6 +6,7 @@ export function proxy(request: NextRequest) {
   const refreshToken = request.cookies.get('refreshToken');
   const isAuthenticated = !!(accessToken || refreshToken);
   
+  //
   const { pathname } = request.nextUrl;
 
   // Redirect authenticated users away from login page
