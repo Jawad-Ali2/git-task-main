@@ -22,6 +22,8 @@ import {
 } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DashboardSectionSkeleton } from '@/components/common/page-loading';
+import axiosInstance from '@/lib/axios';
+import { toast } from 'sonner';
 import {
   Search,
   FileCode,
@@ -33,6 +35,7 @@ import {
   ClipboardList,
   AlertTriangle,
   Users,
+  Loader2,
 } from 'lucide-react';
 
 export default function MyTasksPage() {
@@ -43,6 +46,7 @@ export default function MyTasksPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [statusUpdatingTaskId, setStatusUpdatingTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     dispatch(fetchMyAssignedTasks());
@@ -123,6 +127,34 @@ export default function MyTasksPage() {
     }
   };
 
+  const handleTaskStatusUpdate = async (
+    task: TeamTask,
+    status: 'open' | 'in-progress' | 'done'
+  ) => {
+    if (task.status === status || statusUpdatingTaskId === task.id) return;
+
+    const statusMap: Record<'open' | 'in-progress' | 'done', 'pending' | 'in-progress' | 'completed'> = {
+      open: 'pending',
+      'in-progress': 'in-progress',
+      done: 'completed',
+    };
+
+    try {
+      setStatusUpdatingTaskId(task.id);
+
+      await axiosInstance.patch(`/tasks/${task.id}/status`, {
+        status: statusMap[status],
+      });
+
+      await dispatch(fetchMyAssignedTasks());
+      toast.success('Task status updated');
+    } catch {
+      toast.error('Failed to update task status');
+    } finally {
+      setStatusUpdatingTaskId(null);
+    }
+  };
+
   const TaskCard = ({ task }: { task: TeamTask }) => (
     (() => {
       const hasTeamOrigin = !!task.origins?.some((origin) => origin.type === 'team' && origin.teamId);
@@ -195,13 +227,39 @@ export default function MyTasksPage() {
             )}
           </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => window.open(task.repository.url, '_blank')}
-          >
-            <ExternalLink className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Select
+              value={task.status}
+              onValueChange={(value) =>
+                handleTaskStatusUpdate(task, value as 'open' | 'in-progress' | 'done')
+              }
+              disabled={statusUpdatingTaskId === task.id}
+            >
+              <SelectTrigger className="w-[140px]">
+                {statusUpdatingTaskId === task.id ? (
+                  <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Updating
+                  </span>
+                ) : (
+                  <SelectValue placeholder="Status" />
+                )}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="in-progress">In Progress</SelectItem>
+                <SelectItem value="done">Done</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => window.open(task.repository.url, '_blank')}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardContent>
     </Card>

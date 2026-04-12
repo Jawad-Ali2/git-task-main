@@ -223,7 +223,7 @@ export default function RepositoryTasksPage() {
     };
 
     if (loading) {
-        return <DashboardSectionSkeleton cards={4} rows={8} />;
+        return <DashboardSectionSkeleton cards={2} rows={8} />;
     }
 
     return (

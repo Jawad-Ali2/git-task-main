@@ -52,10 +52,10 @@ export function TasksByRepositoryChart() {
         const repo = repoMap.get(repoId)!;
         repo.taskCount++;
         
-        // Count by status
-        if (task.status === 'pending') repo.pending++;
+        // Count by status (support both canonical + client vocab)
+        if (task.status === 'pending' || task.status === 'open') repo.pending++;
         else if (task.status === 'in-progress' || task.status === 'in_progress') repo.inProgress++;
-        else if (task.status === 'completed') repo.completed++;
+        else if (task.status === 'completed' || task.status === 'done') repo.completed++;
       });
 
       // Convert to array and sort by task count

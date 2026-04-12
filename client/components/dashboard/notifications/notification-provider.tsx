@@ -8,35 +8,39 @@ import { CheckCircle, XCircle, Loader2, Info } from 'lucide-react';
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   // Track scan toast IDs per repository to update them in place
   const scanToastIds = useRef<Map<string, string | number>>(new Map());
-  const { notifications, isConnected } = useNotificationContext();
-  const processedNotifications = useRef<Set<string> | null>(null);
-
-  // On first render, seed processedNotifications with existing notifications
-  // so that localStorage-persisted notifications are not re-toasted on refresh.
-  if (processedNotifications.current === null) {
-    const initial = new Set<string>();
-    notifications.forEach((n) => {
-      initial.add(`${n.type}-${n.timestamp}`);
-    });
-    processedNotifications.current = initial;
-  }
+  const { notifications, isConnected, isHydrated } = useNotificationContext();
+  const processedNotifications = useRef<Set<string>>(new Set());
+  const hasInitialized = useRef(false);
+  const hasSeenInitialConnection = useRef(false);
 
   useEffect(() => {
+    if (!isHydrated) return;
+
+    // Seed with already-present notifications once hydration completes,
+    // so persisted history is not shown as fresh toasts on page refresh.
+    if (!hasInitialized.current) {
+      notifications.forEach((notification) => {
+        processedNotifications.current.add(`${notification.type}-${notification.timestamp}`);
+      });
+      hasInitialized.current = true;
+      return;
+    }
+
     // Process new notifications
     notifications.forEach((notification) => {
       const notificationId = `${notification.type}-${notification.timestamp}`;
       
       // Skip if already processed
-      if (processedNotifications?.current?.has(notificationId)) {
+      if (processedNotifications.current.has(notificationId)) {
         return;
       }
       
-      processedNotifications?.current?.add(notificationId);
-      handleNotification(notification);
+      processedNotifications.current.add(notificationId);
+      handleNotification(notification, notificationId);
     });
-  }, [notifications]);
+  }, [notifications, isHydrated]);
 
-  const handleNotification = (notification: Notification) => {
+  const handleNotification = (notification: Notification, notificationId: string) => {
     const { type, title, message, data } = notification;
     const repoId = data?.repoId || data?.repositoryId;
 
@@ -77,6 +81,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } else {
           // Fallback if no toast ID exists
           toast.info(title, {
+            id: notificationId,
             description: message,
             icon: <Loader2 className="h-4 w-4 animate-spin" />,
             duration: 2000,
@@ -110,6 +115,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } else {
           // Fallback
           toast.success(title, {
+            id: notificationId,
             description: message,
             icon: <CheckCircle className="h-4 w-4" />,
             duration: 5000,
@@ -143,6 +149,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         } else {
           // Fallback
           toast.error(title, {
+            id: notificationId,
             description: message,
             icon: <XCircle className="h-4 w-4" />,
             duration: 7000,
@@ -153,6 +160,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       case NotificationType.REPO_ADDED:
         toast.success(title, {
+          id: notificationId,
           description: message,
           icon: <CheckCircle className="h-4 w-4" />,
           duration: 4000,
@@ -161,6 +169,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       case NotificationType.REPO_REMOVED:
         toast.info(title, {
+          id: notificationId,
           description: message,
           icon: <Info className="h-4 w-4" />,
           duration: 3000,
@@ -169,6 +178,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       case NotificationType.WEBHOOK_CREATED:
         toast.success(title, {
+          id: notificationId,
           description: message,
           icon: <CheckCircle className="h-4 w-4" />,
           duration: 3000,
@@ -177,6 +187,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       case NotificationType.WEBHOOK_DELETED:
         toast.info(title, {
+          id: notificationId,
           description: message,
           icon: <Info className="h-4 w-4" />,
           duration: 3000,
@@ -185,6 +196,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       case NotificationType.WEBHOOK_FAILED:
         toast.error(title, {
+          id: notificationId,
           description: message,
           icon: <XCircle className="h-4 w-4" />,
           duration: 5000,
@@ -195,6 +207,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       case NotificationType.TASK_UPDATED:
       case NotificationType.TASK_DELETED:
         toast.info(title, {
+          id: notificationId,
           description: message,
           duration: 3000,
         });
@@ -202,6 +215,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
       default:
         toast(title, {
+          id: notificationId,
           description: message,
           duration: 3000,
         });
@@ -209,13 +223,21 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   };
 
   useEffect(() => {
+    if (!isHydrated) return;
+
     if (isConnected) {
+      // Skip toast on first successful connection after page load.
+      if (!hasSeenInitialConnection.current) {
+        hasSeenInitialConnection.current = true;
+        return;
+      }
+
       toast.success('Connected', {
         description: 'Real-time notifications enabled',
         duration: 2000,
       });
     }
-  }, [isConnected]);
+  }, [isConnected, isHydrated]);
 
   return <>{children}</>;
 }

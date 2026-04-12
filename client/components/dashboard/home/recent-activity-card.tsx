@@ -122,11 +122,13 @@ export function RecentActivityCard() {
   const getStatusColor = (status?: string) => {
     switch (status) {
       case 'completed':
+      case 'done':
         return 'bg-green-500/10 text-green-500';
       case 'in-progress':
       case 'in_progress':
         return 'bg-blue-500/10 text-blue-500';
       case 'pending':
+      case 'open':
         return 'bg-yellow-500/10 text-yellow-500';
       default:
         return 'bg-gray-500/10 text-gray-500';

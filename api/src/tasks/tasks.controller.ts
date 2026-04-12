@@ -23,6 +23,13 @@ export class TasksController {
         return status;
     }
 
+    private toStatsStatus(status: string): 'pending' | 'in-progress' | 'completed' {
+        const normalized = this.toClientStatus(status);
+        if (normalized === 'in-progress') return 'in-progress';
+        if (normalized === 'completed') return 'completed';
+        return 'pending';
+    }
+
     private mapTaskToClient(task: Task): Task {
         return {
             ...task,
@@ -270,13 +277,22 @@ export class TasksController {
             .where('repository.userId = :userId', { userId: user.userId })
             .getMany();
 
+        const byStatus = tasks.reduce(
+            (acc, task) => {
+                const status = this.toStatsStatus(task.status);
+                acc[status] += 1;
+                return acc;
+            },
+            {
+                pending: 0,
+                'in-progress': 0,
+                completed: 0,
+            }
+        );
+
         const stats = {
             total: tasks.length,
-            byStatus: {
-                pending: tasks.filter(t => t.status === 'pending').length,
-                'in-progress': tasks.filter(t => t.status === 'in-progress').length,
-                completed: tasks.filter(t => t.status === 'completed').length,
-            },
+            byStatus,
             byType: tasks.reduce((acc, task) => {
                 acc[task.type] = (acc[task.type] || 0) + 1;
                 return acc;

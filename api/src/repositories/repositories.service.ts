@@ -110,6 +110,7 @@ export class RepositoriesService {
             const response = await octokit.repos.listForAuthenticatedUser({
                 page,
                 per_page: perPage,
+                affiliation: 'owner',
                 sort: 'updated',
                 direction: 'desc'
             });
@@ -237,7 +238,8 @@ export class RepositoriesService {
 
             // For OAuth: Use standard user repos endpoint
             allRepos = await octokit.paginate(octokit.repos.listForAuthenticatedUser, {
-                per_page: 100
+                per_page: 100,
+                affiliation: 'owner',
             });
         }
 
@@ -253,6 +255,10 @@ export class RepositoriesService {
                 private: repo.private,
                 user
             }));
+
+        if (!useInstallationToken && validRepos.length !== githubRepoIds.length) {
+            throw new BadRequestException('One or more repositories are invalid or not owned by you. Only owned repositories can be added.');
+        }
 
         // Filter out already saved repos
         const newRepos: Array<{
@@ -284,14 +290,6 @@ export class RepositoriesService {
                         // Extract owner/repo from URL (e.g., "https://github.com/owner/repo")
                         const repoFullName = repo.url.replace('https://github.com/', '').replace(/\/$/, '');
                         await this.createWebhookForRepo(repoFullName, decryptedToken);
-                        
-                        // ✅ Send success notification for webhook
-                        await this.notificationsService.emit(userId, {
-                            type: NotificationType.WEBHOOK_CREATED,
-                            title: 'Webhook Created',
-                            message: `Webhook created successfully for ${repo.name}`,
-                            timestamp: new Date(),
-                        });
                     } catch (error) {
                         this.logger.error(`Failed to create webhook for ${repo.name}: ${error.message}`);
                         

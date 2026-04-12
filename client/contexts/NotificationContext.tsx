@@ -29,6 +29,7 @@ export interface Notification {
 interface NotificationContextType {
   notifications: Notification[];
   isConnected: boolean;
+  isHydrated: boolean;
   clearNotifications: () => void;
   clearNotification: (id: string) => void;
   addNotification: (notification: Notification) => void;
@@ -49,6 +50,7 @@ const SCAN_NOTIFICATION_TYPES = [
 
 export function NotificationContextProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -65,6 +67,8 @@ export function NotificationContextProvider({ children }: { children: React.Reac
       }
     } catch (error) {
       console.error('Failed to load notifications from storage:', error);
+    } finally {
+      setIsHydrated(true);
     }
   }, []);
 
@@ -207,6 +211,7 @@ export function NotificationContextProvider({ children }: { children: React.Reac
       value={{
         notifications,
         isConnected,
+        isHydrated,
         clearNotifications,
         clearNotification,
         addNotification,

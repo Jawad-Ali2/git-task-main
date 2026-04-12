@@ -7,6 +7,7 @@ import { useAppDispatch, useAppSelector } from '@/redux/hooks';
 import {
   fetchTeamById,
   fetchTeamTasks,
+  fetchMyAssignedTasks,
   fetchAssignableMembers,
   assignTask,
   unassignTask,
@@ -57,6 +58,8 @@ import {
 } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DashboardSectionSkeleton } from '@/components/common/page-loading';
+import axiosInstance from '@/lib/axios';
+import { toast } from 'sonner';
 import {
   ArrowLeft,
   Loader2,
@@ -106,6 +109,7 @@ export default function TeamTasksPage() {
   const [selectedTask, setSelectedTask] = useState<TeamTask | null>(null);
   const [selectedMember, setSelectedMember] = useState<string>('');
   const [dueDate, setDueDate] = useState<string>('');
+  const [statusUpdatingTaskId, setStatusUpdatingTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     if (teamId) {
@@ -171,6 +175,42 @@ export default function TeamTasksPage() {
     if (!taskToUnassign) return;
     await dispatch(unassignTask({ teamId, taskId: taskToUnassign.id }));
     setTaskToUnassign(null);
+  };
+
+  const handleStatusUpdate = async (
+    task: TeamTask,
+    status: 'open' | 'in-progress' | 'done'
+  ) => {
+    if (task.status === status || statusUpdatingTaskId === task.id) return;
+
+    const statusMap: Record<'open' | 'in-progress' | 'done', 'pending' | 'in-progress' | 'completed'> = {
+      open: 'pending',
+      'in-progress': 'in-progress',
+      done: 'completed',
+    };
+
+    try {
+      setStatusUpdatingTaskId(task.id);
+      await axiosInstance.patch(`/tasks/${task.id}/status`, { status: statusMap[status] });
+
+      const filters: any = {};
+      if (statusFilter !== 'all') filters.status = statusFilter;
+      if (priorityFilter !== 'all') filters.priority = priorityFilter;
+      if (typeFilter !== 'all') filters.type = typeFilter;
+      if (assigneeFilter !== 'all') filters.assignedTo = assigneeFilter;
+      if (repoFilter !== 'all') filters.repositoryId = repoFilter;
+
+      await Promise.all([
+        dispatch(fetchTeamTasks({ teamId, filters })),
+        dispatch(fetchMyAssignedTasks()),
+      ]);
+
+      toast.success('Task status updated');
+    } catch {
+      toast.error('Failed to update task status');
+    } finally {
+      setStatusUpdatingTaskId(null);
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -413,6 +453,40 @@ export default function TeamTasksPage() {
                             <DropdownMenuSeparator />
                           </>
                         )}
+                        <DropdownMenuItem
+                          disabled={statusUpdatingTaskId === task.id || task.status === 'open'}
+                          onClick={() => handleStatusUpdate(task, 'open')}
+                        >
+                          {statusUpdatingTaskId === task.id ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <AlertCircle className="mr-2 h-4 w-4" />
+                          )}
+                          Mark as Open
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={statusUpdatingTaskId === task.id || task.status === 'in-progress'}
+                          onClick={() => handleStatusUpdate(task, 'in-progress')}
+                        >
+                          {statusUpdatingTaskId === task.id ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Clock className="mr-2 h-4 w-4" />
+                          )}
+                          Mark as In Progress
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={statusUpdatingTaskId === task.id || task.status === 'done'}
+                          onClick={() => handleStatusUpdate(task, 'done')}
+                        >
+                          {statusUpdatingTaskId === task.id ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                          )}
+                          Mark as Done
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() => window.open(task.repository.url, '_blank')}
                         >

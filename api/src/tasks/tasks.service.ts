@@ -915,13 +915,13 @@ export class TasksService {
             userId,
             NotificationType.SCAN_COMPLETED,
             'Commit Scan Completed',
-            `${completedCount} completed, ${addedCount} added, ${modifiedCount} modified`,
+            `${completedCount} completed, ${addedCount} added`,
             repoId,
             { completed: completedCount, added: addedCount, modified: modifiedCount, details }
         );
 
         this.logger.log(
-            `✨ Incremental scan complete: ${completedCount} completed, ${addedCount} added, ${modifiedCount} modified`
+            `✨ Incremental scan complete: ${completedCount} completed, ${addedCount} added`
         );
 
         return { completed: completedCount, added: addedCount, modified: modifiedCount, details };

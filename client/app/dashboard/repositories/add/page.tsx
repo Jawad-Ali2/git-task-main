@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import axiosInstance from '@/lib/axios';
 import { useRouter } from 'next/navigation';
-import { useAppDispatch } from '@/redux/hooks';
-import { addNotification } from '@/redux/scanNotificationSlice';
 import { toast } from 'sonner';
 
 interface Repository {
@@ -32,7 +30,6 @@ export default function RepositoriesPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const router = useRouter();
-  const dispatch = useAppDispatch();
 
   const fetchRepos = async (pageNum: number = 1, searchTerm: string = '') => {
     setLoading(true);
@@ -93,16 +90,6 @@ export default function RepositoriesPage() {
       const response = await axiosInstance.post('/repositories/save', {
         repositoryIds: newRepos
       });
-
-      // Get the newly added repository details from backend response
-      const addedRepos = response.data.repositories || [];
-
-      // Trigger scan notification
-      if (addedRepos.length > 0) {
-        dispatch(addNotification({
-          repositories: addedRepos,
-        }));
-      }
 
       router.push('/dashboard');
     } catch (error: any) {

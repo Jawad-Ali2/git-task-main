@@ -14,7 +14,6 @@ import {
 import { Input } from '@/components/ui/input';
 import axiosInstance from '@/lib/axios';
 import { useAppDispatch } from '@/redux/hooks';
-import { addNotification } from '@/redux/scanNotificationSlice';
 import { fetchRepositories } from '@/redux/repositoriesSlice';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -130,16 +129,6 @@ export function AddRepositoryModal({ open, onOpenChange, onSuccess }: AddReposit
       const response = await axiosInstance.post('/repositories/save', {
         repositoryIds: newRepos
       });
-
-      // Get the newly added repository details from backend response
-      const addedRepos = response.data.repositories || [];
-
-      // Trigger scan notification
-      if (addedRepos.length > 0) {
-        dispatch(addNotification({
-          repositories: addedRepos,
-        }));
-      }
 
       toast.success(`Successfully added ${newRepos.length} repository(ies)`);
 
