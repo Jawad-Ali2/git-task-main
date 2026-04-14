@@ -8,7 +8,7 @@ describe('WebhooksController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [WebhooksController],
-      providers: [WebhooksService],
+      providers: [{ provide: WebhooksService, useValue: {} }],
     }).compile();
 
     controller = module.get<WebhooksController>(WebhooksController);

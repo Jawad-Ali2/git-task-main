@@ -20,6 +20,12 @@ describe('TasksService reconciliation', () => {
     const redis: any = {};
     const notificationsService: any = { emit: jest.fn(), acquireLock: jest.fn().mockResolvedValue(true), releaseLock: jest.fn() };
     const aiService: any = { isAvailable: () => false };
+    const dataSource: any = {
+      transaction: async (cb: any) =>
+        cb({
+          getRepository: () => taskRepo,
+        }),
+    };
 
     // Prevent background worker from starting by overriding the private method at runtime
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -27,7 +33,7 @@ describe('TasksService reconciliation', () => {
     (TasksService.prototype as any).startWorker = async () => {};
 
     // @ts-ignore
-    const svc = new TasksService(repoEntity, taskRepo, redis, notificationsService, aiService);
+    const svc = new TasksService(repoEntity, taskRepo, redis, notificationsService, aiService, dataSource, undefined);
     return { svc, taskRepo, saved };
   }
 
