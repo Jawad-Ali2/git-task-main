@@ -51,6 +51,17 @@ export class TrelloApiService {
   private readonly logger = new Logger(TrelloApiService.name);
   private readonly baseUrl = 'https://api.trello.com/1';
 
+  private getErrorSummary(error: any): string {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    const message =
+      typeof data === 'string'
+        ? data
+        : data?.message || error?.message || 'Unknown Trello API error';
+
+    return status ? `${status} ${message}` : message;
+  }
+
   /**
    * Create axios instance with Trello authentication
    */
@@ -78,9 +89,35 @@ export class TrelloApiService {
       });
       return response.data;
     } catch (error) {
-      this.logger.error('Failed to fetch Trello boards', error);
+      this.logger.error(`Failed to fetch Trello boards: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to fetch Trello boards',
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  /**
+   * Get open cards in a Trello board
+   */
+  async getBoardCards(
+    apiKey: string,
+    token: string,
+    boardId: string,
+  ): Promise<TrelloCard[]> {
+    try {
+      const client = this.createClient(apiKey, token);
+      const response = await client.get(`/boards/${boardId}/cards`, {
+        params: {
+          filter: 'open',
+          fields: 'id,name,desc,url,idList,idBoard,labels,due,pos',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      this.logger.error(`Failed to fetch Trello board cards: ${this.getErrorSummary(error)}`);
+      throw new HttpException(
+        'Failed to fetch Trello board cards',
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -104,7 +141,7 @@ export class TrelloApiService {
       });
       return response.data;
     } catch (error) {
-      this.logger.error('Failed to fetch Trello lists', error);
+      this.logger.error(`Failed to fetch Trello lists: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to fetch Trello lists',
         HttpStatus.BAD_REQUEST,
@@ -133,7 +170,7 @@ export class TrelloApiService {
       this.logger.log(`Created Trello card: ${response.data.id}`);
       return response.data;
     } catch (error) {
-      this.logger.error('Failed to create Trello card', error);
+      this.logger.error(`Failed to create Trello card: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to create Trello card',
         HttpStatus.BAD_REQUEST,
@@ -163,7 +200,7 @@ export class TrelloApiService {
       this.logger.log(`Updated Trello card: ${cardId}`);
       return response.data;
     } catch (error) {
-      this.logger.error('Failed to update Trello card', error);
+      this.logger.error(`Failed to update Trello card: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to update Trello card',
         HttpStatus.BAD_REQUEST,
@@ -184,7 +221,7 @@ export class TrelloApiService {
       const response = await client.get(`/cards/${cardId}`);
       return response.data;
     } catch (error) {
-      this.logger.error('Failed to fetch Trello card', error);
+      this.logger.error(`Failed to fetch Trello card: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to fetch Trello card',
         HttpStatus.BAD_REQUEST,
@@ -201,7 +238,7 @@ export class TrelloApiService {
       await client.delete(`/cards/${cardId}`);
       this.logger.log(`Deleted Trello card: ${cardId}`);
     } catch (error) {
-      this.logger.error('Failed to delete Trello card', error);
+      this.logger.error(`Failed to delete Trello card: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to delete Trello card',
         HttpStatus.BAD_REQUEST,
@@ -256,7 +293,7 @@ export class TrelloApiService {
       this.logger.log(`Created Trello webhook: ${response.data.id}`);
       return response.data;
     } catch (error) {
-      this.logger.error('Failed to create Trello webhook', error);
+      this.logger.error(`Failed to create Trello webhook: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to create Trello webhook',
         HttpStatus.BAD_REQUEST,
@@ -273,7 +310,7 @@ export class TrelloApiService {
       await client.delete(`/webhooks/${webhookId}`);
       this.logger.log(`Deleted Trello webhook: ${webhookId}`);
     } catch (error) {
-      this.logger.error('Failed to delete Trello webhook', error);
+      this.logger.error(`Failed to delete Trello webhook: ${this.getErrorSummary(error)}`);
       // Don't throw - webhook might already be deleted
     }
   }
@@ -291,7 +328,7 @@ export class TrelloApiService {
       });
       return response.data;
     } catch (error) {
-      this.logger.error('Failed to fetch Trello member info', error);
+      this.logger.error(`Failed to fetch Trello member info: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Invalid Trello credentials',
         HttpStatus.UNAUTHORIZED,
@@ -331,7 +368,7 @@ export class TrelloApiService {
         url: response.data.url,
       };
     } catch (error) {
-      this.logger.error('Failed to create Trello board', error);
+      this.logger.error(`Failed to create Trello board: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to create Trello board',
         HttpStatus.BAD_REQUEST,
@@ -367,7 +404,7 @@ export class TrelloApiService {
         name: response.data.name,
       };
     } catch (error) {
-      this.logger.error('Failed to create Trello list', error);
+      this.logger.error(`Failed to create Trello list: ${this.getErrorSummary(error)}`);
       throw new HttpException(
         'Failed to create Trello list',
         HttpStatus.BAD_REQUEST,

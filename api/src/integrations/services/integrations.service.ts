@@ -4,7 +4,7 @@ import { Repository as TypeOrmRepository, DataSource } from 'typeorm';
 import { Integration } from '../entities/integration.entity';
 import { Task } from '../../tasks/entities/tasks.entity';
 import { Repository } from '../../repositories/entities/repository.entity';
-import { TrelloApiService } from './trello-api.service';
+import { TrelloApiService, TrelloCard } from './trello-api.service';
 import { TrelloWebhookSecurityService } from './trello-webhook-security.service';
 import { JiraApiService } from './jira/jira-api.service';
 import { JiraWebhookSecurityService } from './jira/jira-webhook-security.service';
@@ -439,6 +439,41 @@ export class IntegrationsService implements OnModuleInit {
       }
     }
 
+    // If a repository-specific PM integration is unlinked,
+    // clear provider links from tasks in that repository.
+    if (integration.repository?.id) {
+      if (integration.provider === 'trello') {
+        await this.taskRepository
+          .createQueryBuilder()
+          .update(Task)
+          .set({
+            trelloCardId: null,
+            trelloCardUrl: null,
+            trelloSyncStatus: 'disabled',
+            trelloLastSyncedAt: null,
+            trelloSyncError: null,
+          })
+          .where('repositoryId = :repositoryId', { repositoryId: integration.repository.id })
+          .execute();
+      }
+
+      if (integration.provider === 'jira') {
+        await this.taskRepository
+          .createQueryBuilder()
+          .update(Task)
+          .set({
+            jiraIssueId: null,
+            jiraIssueKey: null,
+            jiraIssueUrl: null,
+            jiraSyncStatus: 'disabled',
+            jiraLastSyncedAt: null,
+            jiraSyncError: null,
+          })
+          .where('repositoryId = :repositoryId', { repositoryId: integration.repository.id })
+          .execute();
+      }
+    }
+
     await this.integrationRepository.remove(integration);
   }
 
@@ -606,6 +641,25 @@ export class IntegrationsService implements OnModuleInit {
       throw new HttpException('Invalid Trello access token', HttpStatus.BAD_REQUEST);
     }
 
+    const trelloConfig = integration.config as TrelloConfig;
+    let boardCards: TrelloCard[] = [];
+    const cardByTaskId = new Map<string, TrelloCard>();
+
+    // Best-effort prefetch for idempotent syncs (avoids duplicate cards on retries)
+    if (!dto.force && trelloConfig?.boardId) {
+      try {
+        boardCards = await this.trelloApiService.getBoardCards(apiKey, token, trelloConfig.boardId);
+        for (const card of boardCards) {
+          const taskId = this.extractGitTaskIdFromCard(card.desc);
+          if (taskId) {
+            cardByTaskId.set(taskId, card);
+          }
+        }
+      } catch (error) {
+        this.logger.warn(`Unable to prefetch Trello cards for dedupe: ${error.message}`);
+      }
+    }
+
     for (const task of tasks) {
       try {
         const targetListId = this.getTargetListId(task.status, integration.config);
@@ -614,8 +668,36 @@ export class IntegrationsService implements OnModuleInit {
           throw new Error(`Trello list not configured for status: ${task.status}`);
         }
 
-        if (task.trelloCardId && !dto.force) {
-          // Update existing card
+        let linkedCard: TrelloCard | undefined;
+
+        if (!dto.force && task.trelloCardId) {
+          linkedCard = {
+            id: task.trelloCardId,
+            name: '',
+            desc: '',
+            url: task.trelloCardUrl || '',
+            idList: '',
+            idBoard: trelloConfig?.boardId || '',
+            labels: [],
+            pos: 0,
+          };
+        }
+
+        // Recover missing task->card links if card exists in board already
+        if (!dto.force && !linkedCard) {
+          linkedCard = cardByTaskId.get(task.id);
+          if (!linkedCard) {
+            linkedCard = this.findExistingCardForTask(task, boardCards);
+          }
+
+          if (linkedCard) {
+            task.trelloCardId = linkedCard.id;
+            task.trelloCardUrl = linkedCard.url;
+          }
+        }
+
+        if (linkedCard && !dto.force) {
+          // Update existing card (including recovered card links)
           await this.trelloApiService.updateCard(apiKey, token, task.trelloCardId, {
             name: `${task.type}: ${task.description}`,
             desc: this.buildCardDescription(task),
@@ -1226,6 +1308,7 @@ export class IntegrationsService implements OnModuleInit {
   private buildCardDescription(task: Task): string {
     const lines = [
       `**Repository:** ${task.repository.name}`,
+      `<!-- GITTASK_TASK_ID:${task.id} -->`,
       `**File:** \`${task.filePath}\``,
       `**Line:** ${task.lineNumber}`,
       `**Priority:** ${task.priority}`,
@@ -1244,6 +1327,34 @@ export class IntegrationsService implements OnModuleInit {
     }
 
     return lines.join('\n');
+  }
+
+  private extractGitTaskIdFromCard(desc?: string): string | undefined {
+    if (!desc) {
+      return undefined;
+    }
+
+    const match = desc.match(/GITTASK_TASK_ID:([a-f0-9\-]{36})/i);
+    return match?.[1];
+  }
+
+  private findExistingCardForTask(task: Task, cards: TrelloCard[]): TrelloCard | undefined {
+    if (!cards.length) {
+      return undefined;
+    }
+
+    const expectedName = `${task.type}: ${task.description}`;
+    const fileSignature = `**File:** \`${task.filePath}\``;
+    const lineSignature = `**Line:** ${task.lineNumber}`;
+
+    return cards.find((card) => {
+      if (card.name !== expectedName) {
+        return false;
+      }
+
+      const desc = card.desc || '';
+      return desc.includes(fileSignature) && desc.includes(lineSignature);
+    });
   }
 
   /**
