@@ -447,11 +447,11 @@ export class IntegrationsService implements OnModuleInit {
           .createQueryBuilder()
           .update(Task)
           .set({
-            trelloCardId: null,
-            trelloCardUrl: null,
+            trelloCardId: () => 'NULL',
+            trelloCardUrl: () => 'NULL',
             trelloSyncStatus: 'disabled',
-            trelloLastSyncedAt: null,
-            trelloSyncError: null,
+            trelloLastSyncedAt: () => 'NULL',
+            trelloSyncError: () => 'NULL',
           })
           .where('repositoryId = :repositoryId', { repositoryId: integration.repository.id })
           .execute();
@@ -462,12 +462,12 @@ export class IntegrationsService implements OnModuleInit {
           .createQueryBuilder()
           .update(Task)
           .set({
-            jiraIssueId: null,
-            jiraIssueKey: null,
-            jiraIssueUrl: null,
+            jiraIssueId: () => 'NULL',
+            jiraIssueKey: () => 'NULL',
+            jiraIssueUrl: () => 'NULL',
             jiraSyncStatus: 'disabled',
-            jiraLastSyncedAt: null,
-            jiraSyncError: null,
+            jiraLastSyncedAt: () => 'NULL',
+            jiraSyncError: () => 'NULL',
           })
           .where('repositoryId = :repositoryId', { repositoryId: integration.repository.id })
           .execute();
@@ -698,11 +698,13 @@ export class IntegrationsService implements OnModuleInit {
 
         if (linkedCard && !dto.force) {
           // Update existing card (including recovered card links)
-          await this.trelloApiService.updateCard(apiKey, token, task.trelloCardId, {
+          await this.trelloApiService.updateCard(apiKey, token, linkedCard.id, {
             name: `${task.type}: ${task.description}`,
             desc: this.buildCardDescription(task),
             idList: targetListId,
           });
+          task.trelloCardId = linkedCard.id;
+          task.trelloCardUrl = linkedCard.url;
         } else {
           // Create new card
           const card = await this.trelloApiService.createCard(apiKey, token, {
