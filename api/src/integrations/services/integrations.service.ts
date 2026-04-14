@@ -359,7 +359,26 @@ export class IntegrationsService implements OnModuleInit {
       integration.tokenExpiresAt = tokens.tokenExpiresAt;
     }
 
+    // Successful token refresh means auth is healthy again
+    integration.status = 'active';
+    integration.lastError = undefined;
+
     await this.integrationRepository.save(integration);
+  }
+
+  /**
+   * Mark integration authentication as invalid to avoid repeated failing refresh attempts
+   */
+  async markIntegrationAuthError(id: string, message: string): Promise<void> {
+    await this.integrationRepository
+      .createQueryBuilder()
+      .update(Integration)
+      .set({
+        status: 'error',
+        lastError: message,
+      })
+      .where('id = :id', { id })
+      .execute();
   }
 
   /**
@@ -619,8 +638,8 @@ export class IntegrationsService implements OnModuleInit {
 
     if (!dto.force) {
       query.andWhere(
-        '(task.trelloSyncStatus IS NULL OR task.trelloSyncStatus = :status)',
-        { status: 'pending' },
+        '(task.trelloCardId IS NULL OR task.trelloSyncStatus IS NULL OR task.trelloSyncStatus IN (:...syncStatuses))',
+        { syncStatuses: ['pending', 'error', 'disabled'] },
       );
     }
 
@@ -1436,8 +1455,8 @@ export class IntegrationsService implements OnModuleInit {
 
     if (!dto.force) {
       query.andWhere(
-        '(task.jiraSyncStatus IS NULL OR task.jiraSyncStatus = :status)',
-        { status: 'pending' },
+        '(task.jiraIssueId IS NULL OR task.jiraSyncStatus IS NULL OR task.jiraSyncStatus IN (:...syncStatuses))',
+        { syncStatuses: ['pending', 'error', 'disabled'] },
       );
     }
 

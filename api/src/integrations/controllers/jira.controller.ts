@@ -457,6 +457,10 @@ export class JiraController {
    * @param forceRefresh - If true, refresh even if token doesn't appear expired
    */
   private async ensureValidToken(integration: any, forceRefresh = false): Promise<string> {
+    if (integration.status === 'error' && integration.lastError) {
+      throw new HttpException(integration.lastError, HttpStatus.BAD_REQUEST);
+    }
+
     const token = integration.decryptAccessToken();
 
     if (!token) {
@@ -506,9 +510,17 @@ export class JiraController {
           console.log('⚠️ Refresh failed but token may still be valid, trying original token');
           return token;
         }
+
+        const reconnectMessage =
+          'Jira token expired - please reconnect your Jira account from Dashboard Settings';
+        await this.integrationsService.markIntegrationAuthError(
+          integration.id,
+          reconnectMessage,
+        );
+
         throw new HttpException(
-          'Failed to refresh Jira token. Please reconnect Jira.',
-          HttpStatus.UNAUTHORIZED,
+          reconnectMessage,
+          HttpStatus.BAD_REQUEST,
         );
       }
     }
