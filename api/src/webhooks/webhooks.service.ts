@@ -1,7 +1,7 @@
 import { RepositoriesService } from '@/repositories/repositories.service';
 import { TasksService } from '@/tasks/tasks.service';
 import { User } from '@/users/entities/user.entity';
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { Repository } from 'typeorm';

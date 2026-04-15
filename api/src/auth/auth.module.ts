@@ -4,7 +4,7 @@ import { AuthService } from './auth.service';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from 'src/users/entities/user.entity';
+import { User } from '@/users/entities/user.entity';
 import { GithubStrategy } from './strategies/github.strategy';
 import { JWTStrategy } from './strategies/jwt.strategy';
 import { ConfigService } from '@nestjs/config';

@@ -2,10 +2,10 @@ import { Module, forwardRef } from '@nestjs/common';
 import { RepositoriesController } from './repositories.controller';
 import { RepositoriesService } from './repositories.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { User } from 'src/users/entities/user.entity';
+import { User } from '@/users/entities/user.entity';
 import { Repository } from './entities/repository.entity';
-import { TasksModule } from 'src/tasks/tasks.module';
-import { NotificationsModule } from 'src/notifications/notifications.module';
+import { TasksModule } from '@/tasks/tasks.module';
+import { NotificationsModule } from '@/notifications/notifications.module';
 
 @Module({
   imports: [

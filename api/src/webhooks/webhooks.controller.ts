@@ -1,10 +1,5 @@
-import { Body, Controller, Header, Headers, HttpCode, HttpStatus, Logger, Post, Req, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, HttpStatus, Logger, Post, Req, UnauthorizedException } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
-import { TasksService } from '@/tasks/tasks.service';
-import { RepositoriesService } from '@/repositories/repositories.service';
-import { InjectRepository } from '@nestjs/typeorm';
-import { User } from '@/users/entities/user.entity';
-import { Repository } from 'typeorm';
 import { Request } from 'express';
 
 @Controller('webhooks')

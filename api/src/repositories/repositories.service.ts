@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, UnauthorizedException, BadRequestException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from 'src/users/entities/user.entity';
+import { User } from '@/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { Repository as RepoEntity } from './entities/repository.entity';
 import { Octokit } from '@octokit/rest';
@@ -9,8 +9,8 @@ import { createAppAuth } from '@octokit/auth-app';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
-import { TasksService } from 'src/tasks/tasks.service';
-import { NotificationsService, NotificationType } from 'src/notifications/notifications.service';
+import { TasksService } from '@/tasks/tasks.service';
+import { NotificationsService, NotificationType } from '@/notifications/notifications.service';
 
 @Injectable()
 export class RepositoriesService {
