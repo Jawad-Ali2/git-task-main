@@ -42,7 +42,7 @@ export class WebhooksController {
           this.logger.log(`Unhandled event type: ${event}`);
           return { message: 'Event ignored' };
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error handling webhook: ${error.message}`);
       throw error;
     }
