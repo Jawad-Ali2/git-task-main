@@ -4,6 +4,8 @@ export function useTaskActions() {
   const updateStatus = async (taskId: string, status: 'pending' | 'in-progress' | 'completed') => {
     try {
       await axiosInstance.patch(`/tasks/${taskId}/status`, { status });
+      // Dispatch custom event to notify listeners of task update
+      window.dispatchEvent(new CustomEvent('taskUpdated', { detail: { taskId, status } }));
       return true;
     } catch (error) {
       console.error('Failed to update task status:', error);
@@ -14,6 +16,8 @@ export function useTaskActions() {
   const updatePriority = async (taskId: string, priority: 'low' | 'medium' | 'high') => {
     try {
       await axiosInstance.patch(`/tasks/${taskId}/priority`, { priority });
+      // Dispatch custom event to notify listeners of task update
+      window.dispatchEvent(new CustomEvent('taskUpdated', { detail: { taskId, priority } }));
       return true;
     } catch (error) {
       console.error('Failed to update task priority:', error);

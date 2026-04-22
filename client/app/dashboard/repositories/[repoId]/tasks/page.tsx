@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Code, Play, RefreshCw } from 'lucide-react';
+import { Code, Play, RefreshCw, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import axiosInstance from '@/lib/axios';
@@ -61,6 +61,7 @@ export default function RepositoryTasksPage() {
     const [loading, setLoading] = useState(true);
     const [scanning, setScanning] = useState(false);
     const [syncing, setSyncing] = useState(false);
+    const [showCompletedTasks, setShowCompletedTasks] = useState(false);
     const [integration, setIntegration] = useState<{ provider: 'trello' | 'jira' | null; configured: boolean }>({ provider: null, configured: false });
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
     const [isCodeSnippetModalOpen, setIsCodeSnippetModalOpen] = useState(false);
@@ -307,26 +308,83 @@ export default function RepositoryTasksPage() {
                             } : undefined}
                         />
                     ) : (
-                        <div className="divide-y -mb-6">
-                            {filteredTasks.map((task) => (
-                                <TaskCard
-                                    key={task.id}
-                                    task={task}
-                                    onViewCode={(task) => {
-                                        setSelectedTask(task);
-                                        setIsCodeSnippetModalOpen(true);
-                                    }}
-                                    onCreateCard={integration.configured ? (task) => {
-                                        setSelectedTask(task);
-                                    } : undefined}
-                                    onUpdateStatus={handleUpdateStatus}
-                                    onUpdatePriority={handleUpdatePriority}
-                                    showStatusSelect={true}
-                                    showPrioritySelect={true}
-                                    layout="detailed"
-                                />
-                            ))}
-                        </div>
+                        (() => {
+                            const activeTasks = filteredTasks.filter(t => t.status !== 'completed');
+                            const completedTasks = filteredTasks.filter(t => t.status === 'completed');
+                            
+                            return (
+                              <div className="space-y-6 pb-6">
+                                {/* Active Tasks Section */}
+                                <div>
+                                  {activeTasks.length > 0 ? (
+                                    <div className="divide-y rounded-lg overflow-hidden">
+                                      {activeTasks.map((task) => (
+                                        <TaskCard
+                                          key={task.id}
+                                          task={task}
+                                          onViewCode={(task) => {
+                                            setSelectedTask(task);
+                                            setIsCodeSnippetModalOpen(true);
+                                          }}
+                                          onCreateCard={integration.configured ? (task) => {
+                                            setSelectedTask(task);
+                                          } : undefined}
+                                          onUpdateStatus={handleUpdateStatus}
+                                          onUpdatePriority={handleUpdatePriority}
+                                          showStatusSelect={true}
+                                          showPrioritySelect={true}
+                                          layout="detailed"
+                                        />
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="p-8 rounded-lg bg-muted/30 text-center">
+                                      <Code className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                                      <p className="text-sm text-muted-foreground">No active tasks</p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Completed Tasks Section */}
+                                {completedTasks.length > 0 && (
+                                  <div className="rounded-lg overflow-hidden">
+                                    <button
+                                      onClick={() => setShowCompletedTasks(!showCompletedTasks)}
+                                      className="w-full p-4 bg-muted/50 hover:bg-muted cursor-pointer font-semibold flex items-center gap-2 transition-colors"
+                                    >
+                                      <ChevronDown 
+                                        className={`h-5 w-5 transition-transform ${showCompletedTasks ? 'rotate-180' : ''}`}
+                                      />
+                                      <span className="text-lg">Completed Tasks ({completedTasks.length})</span>
+                                    </button>
+                                    {showCompletedTasks && (
+                                      <div className="divide-y">
+                                        {completedTasks.map((task) => (
+                                          <div key={task.id} className="opacity-60 hover:opacity-100 transition-opacity bg-muted/20">
+                                            <TaskCard
+                                              task={task}
+                                              onViewCode={(task) => {
+                                                setSelectedTask(task);
+                                                setIsCodeSnippetModalOpen(true);
+                                              }}
+                                              onCreateCard={integration.configured ? (task) => {
+                                                setSelectedTask(task);
+                                              } : undefined}
+                                              onUpdateStatus={handleUpdateStatus}
+                                              onUpdatePriority={handleUpdatePriority}
+                                              showStatusSelect={true}
+                                              showPrioritySelect={true}
+                                              layout="detailed"
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()
                     )}
                 </CardContent>
             </Card>

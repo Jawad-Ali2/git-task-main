@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Code } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Code, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import axiosInstance from '@/lib/axios';
 import { useTaskFilters } from '@/hooks/useTaskFilters';
-import { EmptyState, LoadingState, PageHeader } from '@/components/common';
+import { PageHeader } from '@/components/common';
 import { TaskCard, TaskCodeSnippetModal, TaskFilters } from '@/components/dashboard';
 import { DashboardSectionSkeleton } from '@/components/common/page-loading';
 
@@ -38,10 +39,18 @@ interface Task {
 }
 
 export default function TasksPage() {
+  const searchParams = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isCodeSnippetModalOpen, setIsCodeSnippetModalOpen] = useState(false);
+  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+
+  // Get initial filters from URL query parameters
+  const initialStatusFilter = searchParams.get('status') || 'all';
+  const initialPriorityFilter = searchParams.get('priority') || 'all';
+  const initialTypeFilter = searchParams.get('type') || 'all';
+  const initialRepoFilter = searchParams.get('repository') || 'all';
 
   const {
     searchQuery,
@@ -56,7 +65,13 @@ export default function TasksPage() {
     setRepoFilter,
     filteredTasks,
     clearFilters,
-  } = useTaskFilters({ tasks });
+  } = useTaskFilters({
+    tasks,
+    initialStatusFilter,
+    initialPriorityFilter,
+    initialTypeFilter,
+    initialRepoFilter,
+  });
 
   useEffect(() => {
     fetchTasks();
@@ -147,31 +162,77 @@ export default function TasksPage() {
             layout='horizontal'
           />
 
+          {/* Separate completed and non-completed tasks */}
+          {(() => {
+            const activeTasks = filteredTasks.filter(t => t.status !== 'completed');
+            const completedTasks = filteredTasks.filter(t => t.status === 'completed');
 
-          {/* Tasks List */}
-          {filteredTasks.length === 0 ? (
-            <EmptyState
-              icon={Code}
-              title="No tasks found"
-              description="Try scanning your repositories or adjusting your filters"
-            />
-          ) : (
-            <div className="divide-y">
-              {filteredTasks.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  onViewCode={(task) => {
-                    setSelectedTask(task);
-                    setIsCodeSnippetModalOpen(true);
-                  }}
+            return (
+              <div className="space-y-6">
+                {/* Active Tasks Section */}
+                <div>
+                  <div className="mb-3">
+                    <h3 className="text-lg font-semibold">Active Tasks ({activeTasks.length})</h3>
+                    <p className="text-sm text-muted-foreground">Pending, in-progress, and other active tasks</p>
+                  </div>
 
-                  showRepository={true}
-                  layout="detailed"
-                />
-              ))}
-            </div>
-          )}
+                  {activeTasks.length === 0 ? (
+                    <div className="p-8 rounded-lg bg-muted/30 text-center">
+                      <Code className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-sm text-muted-foreground">No active tasks</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y rounded-lg overflow-hidden">
+                      {activeTasks.map((task) => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          onViewCode={(task) => {
+                            setSelectedTask(task);
+                            setIsCodeSnippetModalOpen(true);
+                          }}
+                          showRepository={true}
+                          layout="detailed"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Completed Tasks Section */}
+                {completedTasks.length > 0 && (
+                  <div className="rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setShowCompletedTasks(!showCompletedTasks)}
+                      className="w-full p-4 bg-muted/50 hover:bg-muted cursor-pointer font-semibold flex items-center gap-2 transition-colors"
+                    >
+                      <ChevronDown
+                        className={`h-5 w-5 transition-transform ${showCompletedTasks ? 'rotate-180' : ''}`}
+                      />
+                      <span className="text-lg">Completed Tasks ({completedTasks.length})</span>
+                    </button>
+                    {showCompletedTasks && (
+                      <div className="divide-y">
+                        {completedTasks.map((task) => (
+                          <div key={task.id} className="opacity-60 hover:opacity-100 transition-opacity bg-muted/20">
+                            <TaskCard
+                              task={task}
+                              onViewCode={(task) => {
+                                setSelectedTask(task);
+                                setIsCodeSnippetModalOpen(true);
+                              }}
+                              showRepository={true}
+                              layout="detailed"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
 

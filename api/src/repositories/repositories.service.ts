@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, UnauthorizedException, BadRequestException, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { User } from 'src/users/entities/user.entity';
+import { User } from '@/users/entities/user.entity';
 import { Repository } from 'typeorm';
 import { Repository as RepoEntity } from './entities/repository.entity';
 import { Octokit } from '@octokit/rest';
@@ -9,8 +9,8 @@ import { createAppAuth } from '@octokit/auth-app';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
-import { TasksService } from 'src/tasks/tasks.service';
-import { NotificationsService, NotificationType } from 'src/notifications/notifications.service';
+import { TasksService } from '@/tasks/tasks.service';
+import { NotificationsService, NotificationType } from '@/notifications/notifications.service';
 
 @Injectable()
 export class RepositoriesService {
@@ -25,10 +25,10 @@ export class RepositoriesService {
         private readonly repoEntity: Repository<RepoEntity>,
 
         @Inject('REDIS_CLIENT') private readonly redis: Redis,
-        
+
         @Inject(forwardRef(() => TasksService))
         private readonly tasksService: TasksService,
-        
+
         private readonly notificationsService: NotificationsService,
     ) { }
 
@@ -63,7 +63,7 @@ export class RepositoriesService {
 
             this.logger.log(`Generated installation token for installation ID: ${installationId}`);
             return installationAuth.token;
-        } catch (error) {
+        } catch (error: any) {
             this.logger.error(`Failed to generate installation token: ${error.message}`);
             throw new Error(`Failed to generate GitHub App installation token: ${error.message}`);
         }
@@ -163,7 +163,7 @@ export class RepositoriesService {
             this.logger.log(`Fetched ${mappedRepos.length} repos from GitHub for user ${user.id}`);
 
             return result;
-        } catch (error) {
+        } catch (error: any) {
             this.logger.error(`GitHub API error: ${error.message}`);
             throw new UnauthorizedException('Failed to fetch repositories from GitHub');
         }
@@ -219,7 +219,7 @@ export class RepositoriesService {
                 // Extract repositories from the response
                 allRepos = response.data.repositories || [];
                 this.logger.log(`Fetched ${allRepos.length} repositories via GitHub App installation`);
-            } catch (error) {
+            } catch (error: any) {
                 this.logger.error(`Failed to fetch repos via installation: ${error.message}`);
                 throw new Error(`Failed to fetch repositories via GitHub App: ${error.message}`);
             }
@@ -281,7 +281,7 @@ export class RepositoriesService {
         if (newRepos.length > 0) {
             const savedRepos = await this.repoEntity.save(newRepos);
             this.logger.log(`Saved ${newRepos.length} new repos for user ${userId}`);
-            
+
             // ✅ Create webhooks for each saved repository
             const decryptedToken = user.decryptGithubToken();
             if (decryptedToken) {
@@ -290,9 +290,9 @@ export class RepositoriesService {
                         // Extract owner/repo from URL (e.g., "https://github.com/owner/repo")
                         const repoFullName = repo.url.replace('https://github.com/', '').replace(/\/$/, '');
                         await this.createWebhookForRepo(repoFullName, decryptedToken);
-                    } catch (error) {
+                    } catch (error: any) {
                         this.logger.error(`Failed to create webhook for ${repo.name}: ${error.message}`);
-                        
+
                         // ✅ Send error notification
                         await this.notificationsService.emit(userId, {
                             type: NotificationType.WEBHOOK_FAILED,
@@ -306,13 +306,13 @@ export class RepositoriesService {
             } else {
                 this.logger.warn(`Could not create webhooks - failed to decrypt token for user ${userId}`);
             }
-            
+
             // ✅ Trigger automatic scan for each saved repository
             for (const repo of savedRepos) {
                 try {
                     this.logger.log(`Queuing automatic scan for ${repo.name} (${repo.id})`);
                     await this.tasksService.queueScan(repo.id, userId, 10); // High priority for initial scans
-                    
+
                     // ✅ Send info notification
                     await this.notificationsService.emit(userId, {
                         type: NotificationType.REPO_ADDED,
@@ -320,9 +320,9 @@ export class RepositoriesService {
                         message: `${repo.name} has been added and scan initiated`,
                         timestamp: new Date(),
                     });
-                } catch (error) {
+                } catch (error: any) {
                     this.logger.error(`Failed to queue scan for ${repo.name}: ${error.message}`);
-                    
+
                     // ✅ Send error notification
                     await this.notificationsService.emit(userId, {
                         type: NotificationType.SCAN_FAILED,
@@ -332,10 +332,10 @@ export class RepositoriesService {
                     });
                 }
             }
-            
+
             // Invalidate cache
             await this.invalidateUserCache(userId);
-            
+
             // Return the saved repositories with their database IDs
             return savedRepos;
         }
@@ -445,7 +445,7 @@ export class RepositoriesService {
 
             await this.repoEntity.remove(repo);
             this.logger.log(`Removed repository ${githubId} for user ${userId}`);
-            
+
             // Invalidate cache
             await this.invalidateUserCache(userId);
         }
@@ -479,7 +479,7 @@ export class RepositoriesService {
                 try {
                     const repoFullName = repo.url.replace('https://github.com/', '').replace(/\/$/, '');
                     await this.deleteWebhookForRepo(repoFullName, decryptedToken);
-                } catch (error) {
+                } catch (error: any) {
                     this.logger.error(`Failed to delete webhook for ${repo.name}: ${error.message}`);
                     // Continue with repo deletion even if webhook deletion fails
                 }
@@ -491,7 +491,7 @@ export class RepositoriesService {
 
         await this.repoEntity.remove(repo);
         this.logger.log(`Deleted repository ${repoId} for user ${userId}`);
-        
+
         // ✅ Send repository deletion notification
         await this.notificationsService.emit(userId, {
             type: NotificationType.REPO_REMOVED,
@@ -499,7 +499,7 @@ export class RepositoriesService {
             message: `${repoName} has been removed from monitoring`,
             timestamp: new Date(),
         });
-        
+
         // Invalidate cache
         await this.invalidateUserCache(userId);
     }
@@ -511,14 +511,14 @@ export class RepositoriesService {
      */
     private async createWebhookForRepo(repoFullName: string, accessToken: string): Promise<void> {
         const webhookUrl = `${process.env.API_URL || 'http://localhost:5000'}/webhooks/github`;
-        
+
         // ⚠️ Warning if using localhost
         if (webhookUrl.includes('localhost')) {
             this.logger.warn(`⚠️  WARNING: Using localhost URL (${webhookUrl}). GitHub cannot reach localhost! Use ngrok or deploy to production.`);
         }
-        
+
         this.logger.log(`Creating webhook for ${repoFullName} → ${webhookUrl}`);
-        
+
         try {
             const response = await axios.post(
                 `https://api.github.com/repos/${repoFullName}/hooks`,
@@ -541,7 +541,7 @@ export class RepositoriesService {
                     }
                 }
             );
-            
+
             this.logger.log(`✅ Webhook created for ${repoFullName} (ID: ${response.data.id}) → ${webhookUrl}`);
         } catch (error) {
             if (axios.isAxiosError(error)) {
@@ -566,7 +566,7 @@ export class RepositoriesService {
      */
     private async deleteWebhookForRepo(repoFullName: string, accessToken: string): Promise<void> {
         const webhookUrl = `${process.env.API_URL || 'http://localhost:5000'}/webhooks/github`;
-        
+
         try {
             // First, get all webhooks for the repo
             const response = await axios.get(
@@ -595,7 +595,7 @@ export class RepositoriesService {
                         }
                     }
                 );
-                
+
                 this.logger.log(`✅ Webhook deleted for ${repoFullName} (ID: ${webhook.id})`);
             } else {
                 this.logger.warn(`No webhook found for ${repoFullName}`);

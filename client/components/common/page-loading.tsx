@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 
 export function CenteredLoader({ label = "Loading..." }: { label?: string }) {
   return (
-    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3">
+    <div className="flex h-screen flex-col items-center justify-center gap-3">
       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       <p className="text-sm text-muted-foreground">{label}</p>
     </div>

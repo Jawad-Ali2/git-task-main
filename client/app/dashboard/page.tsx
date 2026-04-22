@@ -8,7 +8,7 @@ import { FolderGit2, Loader2, ListTodo } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { DashboardStatsSection } from '@/components/dashboard/home/stats-section';
-import { DashboardBreakdownSection } from '@/components/dashboard/home/breakdown-section';
+// import { DashboardBreakdownSection } from '@/components/dashboard/home/breakdown-section';
 import { DashboardQuickActions } from '@/components/dashboard/home/quick-actions';
 import { EmptyState, PageHeader } from '@/components/common';
 import { DashboardSectionSkeleton } from '@/components/common/page-loading';
@@ -19,6 +19,9 @@ const TasksByRepositoryChart = lazy(() =>
 );
 const RecentActivityCard = lazy(() => 
   import('@/components/dashboard/home').then(mod => ({ default: mod.RecentActivityCard }))
+);
+const DashboardAnalytics = lazy(() => 
+  import('@/components/dashboard/home').then(mod => ({ default: mod.DashboardAnalytics }))
 );
 
 // Loading component for lazy-loaded sections
@@ -83,17 +86,25 @@ export default function DashboardPage() {
       <DashboardStatsSection stats={stats} />
 
       {/* Priority & Type Breakdown */}
-      <DashboardBreakdownSection stats={stats} />
+      {/* <DashboardBreakdownSection stats={stats} /> */}
 
-      {/* Tasks by Repository Chart - Lazy Loaded */}
+      {/* Analytics Overview - Lazy Loaded */}
       <Suspense fallback={<ChartSkeleton />}>
-        <TasksByRepositoryChart />
+        <DashboardAnalytics />
       </Suspense>
 
-      {/* Recent Activity - Lazy Loaded */}
-      <Suspense fallback={<ChartSkeleton />}>
-        <RecentActivityCard />
-      </Suspense>
+      {/* Tasks by Repository and Recent Activity - Side by Side */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Tasks by Repository Chart - Lazy Loaded */}
+        <Suspense fallback={<ChartSkeleton />}>
+          <TasksByRepositoryChart />
+        </Suspense>
+
+        {/* Recent Activity - Lazy Loaded */}
+        <Suspense fallback={<ChartSkeleton />}>
+          <RecentActivityCard />
+        </Suspense>
+      </div>
 
       {/* Quick Actions */}
       <DashboardQuickActions />

@@ -58,8 +58,8 @@ export function TasksByRepositoryChart() {
         else if (task.status === 'completed' || task.status === 'done') repo.completed++;
       });
 
-      // Convert to array and sort by task count
-      const repoData = Array.from(repoMap.values()).sort((a, b) => b.taskCount - a.taskCount);
+      // Convert to array and sort by task count, limit to top 5
+      const repoData = Array.from(repoMap.values()).sort((a, b) => b.taskCount - a.taskCount).slice(0, 5);
       setData(repoData);
     } catch (error) {
       console.error('Failed to fetch repository task counts:', error);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2, CheckCircle2, PlayCircle, GitBranch, FileText, Code, Clock, User } from 'lucide-react';
 import axiosInstance from '@/lib/axios';
 import Link from 'next/link';
@@ -21,6 +22,7 @@ interface ActivityItem {
   status?: string;
   priority?: string;
   icon?: React.ReactNode;
+  author?: string;
 }
 
 export function RecentActivityCard() {
@@ -31,6 +33,18 @@ export function RecentActivityCard() {
     fetchRecentActivity();
   }, []);
 
+  // Listen for task updates and refresh activity
+  useEffect(() => {
+    const handleTaskUpdate = () => {
+      fetchRecentActivity();
+    };
+
+    window.addEventListener('taskUpdated', handleTaskUpdate);
+    return () => {
+      window.removeEventListener('taskUpdated', handleTaskUpdate);
+    };
+  }, []);
+
   const fetchRecentActivity = async () => {
     setLoading(true);
     try {
@@ -38,63 +52,70 @@ export function RecentActivityCard() {
       const response = await axiosInstance.get('/tasks');
       const tasks = response.data || [];
 
-      // Generate dummy activity from tasks (sorted by most recent)
-      const recentTasks = tasks.slice(0, 10);
+      // Generate real activity from actual task events
+      const activityItems: ActivityItem[] = [];
       
-      const activityItems: ActivityItem[] = recentTasks.map((task: any, index: number) => {
-        // Generate varied activity types for demo
-        const activityTypes = ['task_created', 'task_updated', 'status_changed', 'task_completed'];
-        const randomType = activityTypes[index % activityTypes.length] as ActivityItem['type'];
-        
-        // Create timestamp going back in time
-        const hoursAgo = index * 2 + Math.floor(Math.random() * 3);
-        const timestamp = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
-
-        let title = '';
-        let description = '';
-        
-        switch (randomType) {
-          case 'task_created':
-            title = 'New task discovered';
-            description = `${task.type} in ${task.repository.name}`;
-            break;
-          case 'task_updated':
-            title = 'Task priority updated';
-            description = `${task.description.substring(0, 50)}${task.description.length > 50 ? '...' : ''}`;
-            break;
-          case 'status_changed':
-            title = `Task marked as ${task.status.replace('_', ' ')}`;
-            description = `in ${task.repository.name}`;
-            break;
-          case 'task_completed':
-            title = 'Task completed';
-            description = `${task.type}: ${task.description.substring(0, 40)}${task.description.length > 40 ? '...' : ''}`;
-            break;
-          case 'repository_scanned':
-            title = 'Repository scanned';
-            description = `${task.repository.name} - Found new tasks`;
-            break;
+      tasks.forEach((task: any) => {
+        // Task was completed
+        if (task.status === 'completed' && task.completedAt) {
+          activityItems.push({
+            id: `${task.id}-completed`,
+            type: 'task_completed',
+            title: 'Task completed',
+            description: `${task.type}: ${task.description.substring(0, 45)}${task.description.length > 45 ? '...' : ''}`,
+            timestamp: new Date(task.completedAt),
+            taskId: task.id,
+            repositoryId: task.repository.id,
+            repositoryName: task.repository.name,
+            taskType: task.type,
+            status: task.status,
+            priority: task.priority,
+            author: task.completedBy,
+          });
         }
 
-        return {
-          id: `${task.id}-${randomType}`,
-          type: randomType,
-          title,
-          description,
-          timestamp,
-          taskId: task.id,
-          repositoryId: task.repository.id,
-          repositoryName: task.repository.name,
-          taskType: task.type,
-          status: task.status,
-          priority: task.priority,
-        };
+        // Task was recently modified
+        if (task.lastModifiedAt && (!task.completedAt || new Date(task.lastModifiedAt) > new Date(task.completedAt))) {
+          activityItems.push({
+            id: `${task.id}-modified`,
+            type: 'task_updated',
+            title: 'Task updated',
+            description: `${task.description.substring(0, 50)}${task.description.length > 50 ? '...' : ''}`,
+            timestamp: new Date(task.lastModifiedAt),
+            taskId: task.id,
+            repositoryId: task.repository.id,
+            repositoryName: task.repository.name,
+            taskType: task.type,
+            status: task.status,
+            priority: task.priority,
+            author: task.lastModifiedBy,
+          });
+        } else if (task.addedAt) {
+          // Task was created
+          activityItems.push({
+            id: `${task.id}-created`,
+            type: 'task_created',
+            title: 'New task discovered',
+            description: `${task.type} in ${task.repository.name}`,
+            timestamp: new Date(task.addedAt),
+            taskId: task.id,
+            repositoryId: task.repository.id,
+            repositoryName: task.repository.name,
+            taskType: task.type,
+            status: task.status,
+            priority: task.priority,
+            author: task.addedBy,
+          });
+        }
       });
 
-      // Sort by timestamp (most recent first)
-      activityItems.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      // Remove duplicates and sort by timestamp (most recent first)
+      const uniqueActivities = Array.from(
+        new Map(activityItems.map(item => [item.id, item])).values()
+      );
+      uniqueActivities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
       
-      setActivities(activityItems);
+      setActivities(uniqueActivities.slice(0, 4));
     } catch (error) {
       console.error('Failed to fetch recent activity:', error);
     } finally {
@@ -139,7 +160,7 @@ export function RecentActivityCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>Recent Activity (Developers)</CardTitle>
           <CardDescription>Latest updates and changes</CardDescription>
         </CardHeader>
         <CardContent className="flex items-center justify-center py-8">
@@ -153,7 +174,7 @@ export function RecentActivityCard() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Recent Activity</CardTitle>
+          <CardTitle>Recent Activity (Developers)</CardTitle>
           <CardDescription>Latest updates and changes</CardDescription>
         </CardHeader>
         <CardContent className="py-8 text-center">
@@ -167,7 +188,7 @@ export function RecentActivityCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Recent Activity</CardTitle>
+        <CardTitle>Recent Activity (Developers)</CardTitle>
         <CardDescription>Latest updates and changes across your repositories</CardDescription>
       </CardHeader>
       <CardContent>
@@ -205,6 +226,17 @@ export function RecentActivityCard() {
 
                 {/* Metadata */}
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  {activity.author && (
+                    <Avatar className="h-5 w-5">
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                        {activity.author.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  )}
+                  {activity.author && (
+                    <span className="text-xs text-muted-foreground">{activity.author}</span>
+                  )}
+                  
                   {activity.repositoryName && (
                     <Link
                       href={`/dashboard/repositories/${activity.repositoryId}/tasks`}
