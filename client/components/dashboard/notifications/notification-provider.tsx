@@ -43,6 +43,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const handleNotification = (notification: Notification, notificationId: string) => {
     const { type, title, message, data } = notification;
     const repoId = data?.repoId || data?.repositoryId;
+    const repositoryName = data?.repositoryName || data?.repoName || data?.repositoryFullName;
+    const messageWithRepository = repositoryName
+      ? `${message} (Repository: ${repositoryName})`
+      : message;
 
     switch (type) {
       case NotificationType.SCAN_STARTED: {
@@ -55,12 +59,12 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           
           toast.loading(title, {
             id: toastId,
-            description: message,
+            description: messageWithRepository,
             duration: Infinity, // Don't auto-dismiss during scan
           });
         } else {
           toast.info(title, {
-            description: message,
+            description: messageWithRepository,
             icon: <Loader2 className="h-4 w-4 animate-spin" />,
             duration: 3000,
           });
@@ -75,14 +79,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (toastId) {
           toast.loading(title, {
             id: toastId,
-            description: message,
+            description: messageWithRepository,
             duration: Infinity,
           });
         } else {
           // Fallback if no toast ID exists
           toast.info(title, {
             id: notificationId,
-            description: message,
+            description: messageWithRepository,
             icon: <Loader2 className="h-4 w-4 animate-spin" />,
             duration: 2000,
           });
@@ -97,7 +101,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (toastId) {
           toast.success(title, {
             id: toastId,
-            description: message,
+            description: messageWithRepository,
             icon: <CheckCircle className="h-4 w-4" />,
             duration: 5000,
             action: repoId
@@ -116,7 +120,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           // Fallback
           toast.success(title, {
             id: notificationId,
-            description: message,
+            description: messageWithRepository,
             icon: <CheckCircle className="h-4 w-4" />,
             duration: 5000,
             action: repoId
@@ -139,7 +143,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         if (toastId) {
           toast.error(title, {
             id: toastId,
-            description: message,
+            description: messageWithRepository,
             icon: <XCircle className="h-4 w-4" />,
             duration: 7000,
           });
@@ -150,7 +154,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           // Fallback
           toast.error(title, {
             id: notificationId,
-            description: message,
+            description: messageWithRepository,
             icon: <XCircle className="h-4 w-4" />,
             duration: 7000,
           });
@@ -208,7 +212,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       case NotificationType.TASK_DELETED:
         toast.info(title, {
           id: notificationId,
-          description: message,
+          description: messageWithRepository,
           duration: 3000,
         });
         break;

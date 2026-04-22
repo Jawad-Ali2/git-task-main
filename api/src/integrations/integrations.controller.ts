@@ -285,7 +285,7 @@ export class IntegrationsController {
         },
         message: 'Board created successfully with default lists',
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Create Board] Error:', error);
       throw new HttpException(
         error.message || 'Failed to create board',
@@ -335,7 +335,7 @@ export class IntegrationsController {
     if (config.boardId && !result.config?.webhookId) {
       try {
         await this.integrationsService.createWebhook(id, req.user.id);
-      } catch (error) {
+      } catch (error: any) {
         // Don't fail configuration if webhook creation fails
         console.error('Failed to create webhook:', error.message);
       }
@@ -376,7 +376,7 @@ export class IntegrationsController {
     @Headers('x-trello-webhook') signatureHeader?: string,
   ) {
     const startTime = Date.now();
-    const callbackUrl = `${process.env.BACKEND_URL || 'http://localhost:3001'}/integrations/webhook/trello`;
+    const callbackUrl = `${process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`}/integrations/webhook/trello`;
     
     // Get raw body for signature verification
     const rawBody = req.rawBody?.toString() || JSON.stringify(payload);
@@ -456,7 +456,7 @@ export class IntegrationsController {
       boardName: config?.boardName,
       webhookId: config?.webhookId,
       webhookExists: !!config?.webhookId,
-      callbackUrl: `${process.env.BACKEND_URL || 'http://localhost:3000'}/integrations/webhook/trello`,
+      callbackUrl: `${process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 5000}`}/integrations/webhook/trello`,
       lists: {
         todo: {
           id: config?.todoListId,
@@ -496,7 +496,7 @@ export class IntegrationsController {
         message: 'Webhook created successfully',
         webhookId: integration.config?.webhookId,
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         success: false,
         error: error.message,

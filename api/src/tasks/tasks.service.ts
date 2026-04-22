@@ -85,7 +85,7 @@ export class TasksService {
             // Call the integration service to sync the task
             await this.integrationsService.autoSyncNewTask(task.id, task.repository.user?.id);
             this.logger.log(`✨ Auto-synced new task ${task.id} to Trello`);
-        } catch (error) {
+        } catch (error: any) {
             this.logger.warn(`Failed to auto-sync task to Trello: ${error.message}`);
             // Don't throw - auto-sync is best-effort
         }
@@ -511,7 +511,7 @@ export class TasksService {
 
             this.logger.log(`Scan completed for repo ${repoId}. Found ${extractedTasks.length} tasks.`);
 
-        } catch (err) {
+        } catch (err: any) {
             this.logger.error(`Scan failed for repo ${repoId}: ${err.message}`, err.message);
 
             await this.setStatus(repoId, {
@@ -600,7 +600,7 @@ export class TasksService {
                                 content: Buffer.from(data.content, 'base64').toString('utf-8')
                             }
                         }
-                    } catch (err) {
+                    } catch (err: any) {
                         this.logger.warn(`Failed to fetch content for file ${file.path}: ${err.message}`);
                     }
                     return null;
@@ -688,7 +688,7 @@ export class TasksService {
                 });
 
                 this.logger.log(`✅ AI analysis completed for ${tasks.length} tasks`);
-            } catch (error) {
+            } catch (error: any) {
                 this.logger.error(`Failed to analyze tasks with AI: ${error.message}`);
                 // Continue without AI analysis
                 tasks.forEach(task => {
@@ -879,7 +879,7 @@ export class TasksService {
                             
                             currentContent = Buffer.from(fileData.content, 'base64').toString('utf-8');
                         }
-                    } catch (error) {
+                    } catch (error: any) {
                         this.logger.warn(`Could not fetch content for ${filePath}: ${error.message}`);
                         continue;
                     }
@@ -898,7 +898,7 @@ export class TasksService {
                     details.added.push(...fileResult.details.added);
                     details.modified.push(...fileResult.details.modified);
                 }
-            } catch (error) {
+            } catch (error: any) {
                 this.logger.error(
                     `Error processing commit ${commit.id.substring(0, 7)}: ${error.message}`,
                     {
@@ -917,7 +917,13 @@ export class TasksService {
             'Commit Scan Completed',
             `${completedCount} completed, ${addedCount} added`,
             repoId,
-            { completed: completedCount, added: addedCount, modified: modifiedCount, details }
+            {
+                repositoryName: repoFullName,
+                completed: completedCount,
+                added: addedCount,
+                modified: modifiedCount,
+                details,
+            }
         );
 
         this.logger.log(
@@ -1157,7 +1163,7 @@ export class TasksService {
                 // Save AI results to database
                 await this.taskRepo.save(tasksNeedingAI);
                 this.logger.log(`✅ AI analysis completed for ${tasksNeedingAI.length} NEW tasks`);
-            } catch (error) {
+            } catch (error: any) {
                 this.logger.error(`Failed to analyze new tasks with AI: ${error.message}`);
                 // Clean up temporary field
                 tasksNeedingAI.forEach(task => {
