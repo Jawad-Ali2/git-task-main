@@ -9,7 +9,7 @@ async function bootstrap() {
     rawBody: true, // Enable raw body for webhook signature verification
   });
   
-  // Enable cookie parsing
+  // Enable cookie parsings
   app.use(cookieParser());
 
   // Custom JSON parsing that preserves raw body for webhooks
