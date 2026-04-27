@@ -60,36 +60,52 @@ export default function Home() {
           <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-green-600" />
-              <span>SOC 2 Compliant</span>
+              <span>Security-first architecture</span>
             </div>
             <div className="flex items-center gap-2">
               <Zap className="h-4 w-4 text-green-600" />
-              <span>99.9% Uptime</span>
+              <span>Fast repository scanning</span>
             </div>
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-green-600" />
-              <span>10,000+ Developers</span>
+              <span>Built for teams and individuals</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Stats Section */}
+      {/* Highlights Section */}
       <section className="py-16 px-4 border-y border-border bg-secondary/30">
         <div className="container mx-auto max-w-6xl">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { value: '500K+', label: 'TODOs Tracked', icon: Code2 },
-              { value: '10K+', label: 'Repositories', icon: GitBranch },
-              { value: '98%', label: 'User Satisfaction', icon: CheckCircle },
-              { value: '<2min', label: 'Avg Scan Time', icon: Clock },
-            ].map((stat, i) => (
+              {
+                title: 'Automatic TODO discovery',
+                label: 'Scans code comments across connected repositories',
+                icon: Code2,
+              },
+              {
+                title: 'GitHub-native workflow',
+                label: 'Works with your existing repository structure',
+                icon: GitBranch,
+              },
+              {
+                title: 'Actionable insights',
+                label: 'Prioritize and track technical debt with context',
+                icon: CheckCircle,
+              },
+              {
+                title: 'Continuous updates',
+                label: 'Refresh tasks and statuses as code changes',
+                icon: Clock,
+              },
+            ].map((item, i) => (
               <div key={i} className="text-center group">
-                <stat.icon className="h-6 w-6 mx-auto mb-2 text-green-600 group-hover:scale-110 transition-transform" />
-                <div className="text-3xl md:text-4xl font-bold mb-1 bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-                  {stat.value}
+                <item.icon className="h-6 w-6 mx-auto mb-2 text-green-600 group-hover:scale-110 transition-transform" />
+                <div className="text-base md:text-lg font-semibold mb-1 text-foreground">
+                  {item.title}
                 </div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
+                <div className="text-sm text-muted-foreground">{item.label}</div>
               </div>
             ))}
           </div>
@@ -272,7 +288,7 @@ export default function Home() {
               Get started in <span className="bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">3 simple steps</span>
             </h2>
             <p className="text-lg text-muted-foreground">
-              From connection to insights in under 2 minutes
+              Connect your repo, scan comments, and start prioritizing technical debt.
             </p>
           </div>
           
@@ -305,7 +321,7 @@ export default function Home() {
         <div className="container mx-auto max-w-4xl text-center relative z-10">
           <h2 className="text-4xl font-bold mb-6">Ready to take control of your technical debt?</h2>
           <p className="text-xl text-muted-foreground mb-8">
-            Join thousands of developers who are transforming how they manage code quality.
+            Start with one repository and build a clean, consistent debt workflow.
           </p>
           <Link href="/login">
             <Button
