@@ -79,7 +79,7 @@ export default function TrelloConfigModal({
       dispatch(fetchTrelloBoards());
     }
   }, [open, dispatch]);
-
+  // TODO: Add anything blah blah
   useEffect(() => {
     if (selectedBoardId) {
       dispatch(fetchTrelloLists(selectedBoardId));
