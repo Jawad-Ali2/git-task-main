@@ -85,7 +85,7 @@ export default function TrelloConfigModal({
       dispatch(fetchTrelloLists(selectedBoardId));
     }
   }, [selectedBoardId, dispatch]);
-
+  // TODO: THIS IS A NEW TASK FOR FYP
   const handleBoardChange = (boardId: string) => {
     const board = trelloBoards.find((b) => b.id === boardId);
     setSelectedBoardId(boardId);
